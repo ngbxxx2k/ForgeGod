@@ -1,0 +1,8 @@
+# File place và lock file do Roblox Studio sinh ra khi mở qua Rojo
+/*.rbxlx
+/*.rbxlx.lock
+/*.rbxl.lock
+
+# Sourcemap sinh ra từ lệnh "rojo sourcemap", có thể tạo lại bất cứ lúc nào
+sourcemap.json
+
