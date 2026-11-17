@@ -4,9 +4,9 @@
 - Game Roblox "forgeGod": rèn vũ khí, bán lấy tiền, mua quặng và buff để rèn vũ khí xịn hơn.
 - Ngôn ngữ: **Luau**. Công cụ: **Rojo + VSCode**. File dùng đuôi `.luau`.
 - Mọi đường dẫn dưới đây tính từ thư mục `src/`.
+- **Không được viết Comment code**
 
 ## Ngôn ngữ
-- **Comment và tài liệu: tiếng Việt.**
 - **Tên biến, hàm, module, file, remote: tiếng Anh.** Không đặt tên tiếng Việt không dấu.
 - Thông báo hiển thị cho người chơi: tiếng Anh, đặt trong `shared/Constants` (không viết cứng trong logic).
 

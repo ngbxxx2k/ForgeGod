@@ -1,8 +1,13 @@
 --!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local sharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
+local BuffConfig = require(sharedConfig:WaitForChild("BuffConfig"))
+
 local DataTemplate = {}
 
 -- Tăng số này khi đổi cấu trúc dữ liệu, rồi thêm hàm migrate trong DataService
-DataTemplate.SCHEMA_VERSION = 1
+DataTemplate.SCHEMA_VERSION = 4
 
 DataTemplate.Limits = {
 	DefaultItemSlots = 50, -- kho vật phẩm (tổng số lượng quặng + thuốc + vũ khí)
@@ -21,6 +26,13 @@ DataTemplate.WeaponStates = {
 	Broken = "Broken", -- vũ khí hỏng: chỉ để bán, không đeo được
 }
 
+DataTemplate.ItemKinds = {
+	Ore = "Ore", -- quặng
+	OneUse = "OneUse", -- buff dùng 1 lần, cộng dồn số lần
+	Timed = "Timed", -- buff theo thời gian, cộng dồn thời gian
+	Instant = "Instant", -- dùng ngay lên vũ khí
+}
+
 DataTemplate.Items = {
 	-- Quặng
 	Copper = { Kind = "Ore" },
@@ -33,13 +45,14 @@ DataTemplate.Items = {
 	Mithril = { Kind = "Ore" },
 	GodsCore = { Kind = "Ore" },
 
-	-- Vật phẩm buff
-	LuckPotion = { Kind = "OneUse" },
-	BlacksmithPotion = { Kind = "OneUse" },
-	CoinPotion = { Kind = "OneUse" },
-	MutationPotion = { Kind = "Timed", Duration = 600 },
+	-- Đá tẩy mutation
 	MutationEraser = { Kind = "Instant" },
-}
+} :: { [string]: { Kind: string, Duration: number? } }
+
+-- Vật phẩm buff: thêm hoặc sửa trong shared/Config/BuffConfig
+for _, buff in BuffConfig.Buffs do
+	DataTemplate.Items[buff.Id] = { Kind = buff.Kind, Duration = buff.Duration }
+end
 
 -- Dữ liệu mặc định của người chơi mới.
 DataTemplate.Default = {
@@ -56,8 +69,11 @@ DataTemplate.Default = {
 	-- Buff theo thời gian đang chạy: [itemId] = thời điểm hết hạn (epoch, giây)
 	ActiveBuffs = {} :: { [string]: number },
 
-	-- Buff dùng 1 lần đã kích hoạt nhưng chưa bị consume: [itemId] = true
-	ArmedBuffs = {} :: { [string]: boolean },
+	-- Buff theo thời gian tạm dừng khi thoát game: [itemId] = số giây còn lại
+	PausedBuffs = {} :: { [string]: number },
+
+	-- Buff dùng 1 lần đã kích hoạt nhưng chưa bị consume: [itemId] = số lần còn lại
+	ArmedBuffs = {} :: { [string]: number },
 
 	-- Vũ khí treo lưng: mảng weaponId
 	Equipped = {} :: { string },
@@ -79,9 +95,10 @@ DataTemplate.Default = {
 --[[
 	WeaponData mẫu cấu trúc khi được tạo trong Weapons:
 	{
-		Id          : string   -- GUID
+		Id          : string   -- mã định danh duy nhất
 		Rarity      : string   -- Common..Mythic
-		Tier        : number   -- 1..5
+		Tier        : number   -- 1..5 (bậc độ hiếm)
+		WeaponType  : string   -- mã loại vũ khí trong WeaponCatalog (CommonSword...)
 		State       : string   -- Blank | Forged | Broken
 		Level       : number   -- 0..50
 		ForgePoints : number   -- 0..10
@@ -89,6 +106,8 @@ DataTemplate.Default = {
 		BaseValue   : number   -- giá trị phôi gốc
 		Value       : number   -- giá bán hiện tại
 		Recipe      : { [string]: number } -- quặng đã dùng: [oreId] = số lượng
+		ValueHistory: { number }? -- giá trước mỗi bậc trong vòng rèn hiện tại
+		IsLocked    : boolean? -- true nếu người chơi khoá: không bán, không rèn
 		CreatedAt   : number   -- epoch
 	}
 ]]

@@ -1,0 +1,9 @@
+{
+  "className": "Sound",
+  "properties": {
+    "SoundId": "",
+    "Volume": 0.35,
+    "RollOffMinDistance": 6,
+    "RollOffMaxDistance": 50
+  }
+}

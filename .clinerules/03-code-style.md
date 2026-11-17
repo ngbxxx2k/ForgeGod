@@ -2,7 +2,7 @@
 
 ## Định dạng
 - Thụt lề bằng **tab**. Một dòng không quá ~100 ký tự.
-- Dòng đầu mọi file mới: `--!strict`. Nếu file gặp lỗi type không sửa được hợp lý, hạ xuống `--!nonstrict` kèm comment giải thích lý do.
+- Dòng đầu mọi file mới: `--!strict`. Nếu file gặp lỗi type không sửa được hợp lý, hạ xuống `--!nonstrict`.
 - Khai báo kiểu cho tham số và giá trị trả về của hàm public.
 - Mỗi file kết thúc bằng `return`, một dòng trống ở cuối.
 
@@ -24,10 +24,7 @@
 
 ```lua
 --!strict
---[[
-	ShopService
-	Trách nhiệm: xử lý mua quặng và vật phẩm, quản lý tồn kho shop.
-]]
+
 
 local Players = game:GetService("Players")
 
@@ -39,13 +36,11 @@ local ShopService = {}
 
 local isInitialized = false
 
--- Hàm local (private) đặt phía trên
 local function canBuy(player: Player, itemId: string, amount: number): boolean
 	-- ...
 	return true
 end
 
--- Hàm public
 function ShopService.Buy(player: Player, itemId: string, amount: number): (boolean, string?)
 	if not canBuy(player, itemId, amount) then
 		return false, "InvalidRequest"
@@ -59,13 +54,12 @@ function ShopService.Init()
 		return
 	end
 	isInitialized = true
-	-- kết nối Remote, tạo vòng lặp...
 end
 
 return ShopService
 ```
 
-Thứ tự trong file: `--!strict` -> mô tả -> `GetService` -> `require` -> hằng số -> bảng module -> state local -> hàm local -> hàm public -> `Init` -> `return`.
+Thứ tự trong file: `--!strict` -> `GetService` -> `require` -> hằng số -> bảng module -> state local -> hàm local -> hàm public -> `Init` -> `return`.
 
 ## Viết hàm
 - Một hàm làm một việc. Mục tiêu **≤ 40 dòng**, **≤ 3 cấp lồng nhau**.
@@ -73,12 +67,6 @@ Thứ tự trong file: `--!strict` -> mô tả -> `GetService` -> `require` -> h
 - Hàm có thể thất bại trả về `(ok: boolean, reason: string?)`. `reason` là mã ngắn (`"NotEnoughCoins"`), không phải câu văn.
 - Không viết hàm "làm tất cả" nhận nhiều cờ boolean. Tách thành hàm riêng.
 
-## Comment (tiếng Việt)
-- Giải thích **vì sao**, không lặp lại **cái gì** mà code đã nói rõ.
-- Đầu mỗi module: tên + trách nhiệm một hai dòng.
-- Hàm public phức tạp: ghi ngắn tham số, kết quả, lỗi có thể xảy ra.
-- Không để code cũ bị comment lại. Xoá hẳn (đã có git).
-- `TODO:` phải kèm mô tả cụ thể, không để `TODO` trơ trọi.
 
 ## Cấm
 - `wait()`, `spawn()`, `delay()` cũ. Dùng `task.wait`, `task.spawn`, `task.delay`.

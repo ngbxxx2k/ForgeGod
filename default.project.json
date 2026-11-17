@@ -10,6 +10,9 @@
       },
       "Assets": {
         "$path": "src/assets"
+      },
+      "Design": {
+        "$path": "src/Design.rbxm"
       }
     },
 
@@ -32,8 +35,10 @@
     },
 
     "StarterGui": {
-      "$path": "src/starterGui"
-    },
+  "$className": "StarterGui",
+  "$ignoreUnknownInstances": true,
+  "$path": "src/starterGui"
+},
 
     "Workspace": {
       "World": {
@@ -64,16 +69,25 @@
     },
 
     "Lighting": {
+      "$path": "src/lighting",
       "$properties": {
-        "Ambient": [
-          0,
-          0,
-          0
-        ],
-        "Brightness": 2,
+        "Ambient": [0.486275, 0.607843, 0.721569],
+        "OutdoorAmbient": [1.007843, 0.698039, 1],
+        "Brightness": 4,
+        "ClockTime": 14.5,
+        "GeographicLatitude": 0,
+        "ExposureCompensation": 0,
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1,
+        "ShadowSoftness": 1,
         "GlobalShadows": true,
-        "Outlines": false,
-        "Technology": "Voxel"
+        "ColorShift_Bottom": [0, 0, 0],
+        "ColorShift_Top": [0, 0, 0],
+        "FogColor": [0.752941, 0.752941, 0.752941],
+        "FogStart": 0,
+        "FogEnd": 100000,
+        "LightingStyle": "Realistic",
+        "PrioritizeLightingQuality": true
       }
     },
 

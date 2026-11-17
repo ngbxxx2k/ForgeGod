@@ -1,0 +1,195 @@
+--!strict
+--[[
+	ShopService
+	Trách nhiệm: xử lý yêu cầu mua hàng của client (F2.6), giữ tồn kho hiện tại
+	của server, đồng bộ trạng thái shop (tồn kho + mốc restock) cho client.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
+
+local shared = ReplicatedStorage:WaitForChild("Shared")
+local ShopConfig = require(shared:WaitForChild("Config"):WaitForChild("ShopConfig"))
+local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
+
+local DataActions = require(script.Parent.Parent.Data.DataActions)
+local DataService = require(script.Parent.Parent.Data.DataService)
+local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
+
+local ShopRestockTable = require(
+	ServerStorage:WaitForChild("LootTables"):WaitForChild("ShopRestockTable")
+)
+
+local ShopService = {}
+
+local isInitialized = false
+
+local notifyBuyResult: RemoteEvent? = nil
+local notifyShopState: RemoteEvent? = nil
+
+-- Tồn kho hiện tại của server: [itemId] = số lượng còn lại.
+local currentStock: { [string]: number } = {}
+
+-- Chu kỳ restock hiện tại (mốc os.time() chia RestockInterval).
+-- Client dùng giá trị này tự tính đếm ngược, không cần server broadcast liên tục.
+local currentCycle = 0
+
+local function buildOdds(): { [string]: number }
+	local odds = {}
+	for itemId, entry in ShopRestockTable.Entries do
+		odds[itemId] = entry.AppearanceRate
+	end
+	return odds
+end
+
+local function buildStatePayload(): { [string]: any }
+	return {
+		Stock = table.clone(currentStock),
+		Cycle = currentCycle,
+		RestockInterval = ShopConfig.RestockInterval,
+		Odds = buildOdds(),
+	}
+end
+
+-- Gửi trạng thái shop cho một người chơi.
+function ShopService.SendShopState(player: Player)
+	if notifyShopState ~= nil then
+		notifyShopState:FireClient(player, buildStatePayload())
+	end
+end
+
+-- Broadcast trạng thái shop cho mọi người chơi.
+function ShopService.BroadcastShopState()
+	if notifyShopState ~= nil then
+		notifyShopState:FireAllClients(buildStatePayload())
+	end
+end
+
+-- Thay tồn kho shop (do ShopRestockSystem gọi khi đổi chu kỳ).
+function ShopService.SetStock(stock: { [string]: number }, cycleIndex: number)
+	currentStock = table.clone(stock)
+	currentCycle = cycleIndex
+	ShopService.BroadcastShopState()
+end
+
+-- Mua hàng: kiểm tra hợp lệ + đủ tiền + còn hàng TRƯỚC, rồi mới đổi
+-- tiền/vật phẩm, không có task.wait xen giữa (chống nhân đôi, file 04).
+function ShopService.Buy(player: Player, itemId: string, amount: number): (boolean, string?)
+	-- Kiểm tra kiểu tham số: client không đáng tin (file 04).
+	if type(itemId) ~= "string" or type(amount) ~= "number" then
+		return false, "InvalidRequest"
+	end
+	if amount ~= amount or amount == math.huge or -amount == math.huge then
+		return false, "InvalidAmount"
+	end
+	if amount % 1 ~= 0 or amount < 1 or amount > ShopConfig.MaxBuyPerRequest then
+		return false, "InvalidAmount"
+	end
+
+	local price = ShopConfig.ItemPrices[itemId]
+	if price == nil then
+		return false, "InvalidItem"
+	end
+
+	local inStock = currentStock[itemId] or 0
+	if inStock < amount then
+		return false, "OutOfStock"
+	end
+
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+
+	local totalCost = price * amount
+	if data.Coins < totalCost then
+		return false, "NotEnoughCoins"
+	end
+
+	-- Thêm vật phẩm trước (hàm tự kiểm tra sức chứa kho), rồi mới trừ tiền.
+	local okAdd, reasonAdd = DataActions.TryAddItem(player, itemId, amount)
+	if not okAdd then
+		return false, reasonAdd
+	end
+
+	local okPay, reasonPay = DataActions.TryRemoveCoins(player, totalCost)
+	if not okPay then
+		-- Trường hợp hiếm: nếu trừ tiền thất bại thì hoàn lại vật phẩm,
+		-- tránh người chơi mất tiền mà không có hàng (hoặc ngược lại).
+		DataActions.TryRemoveItem(player, itemId, amount)
+		return false, reasonPay
+	end
+
+	currentStock[itemId] = inStock - amount
+	if currentStock[itemId] <= 0 then
+		currentStock[itemId] = nil
+	end
+
+	-- Tồn kho vừa đổi: báo toàn server để UI cập nhật.
+	ShopService.BroadcastShopState()
+	return true
+end
+
+-- Xử lý Remote mua hàng: rate limit rồi gọi Buy, trả kết quả cho người mua.
+local function onRequestBuy(player: Player, itemId: any, amount: any)
+	if not DataService.IsLoaded(player) then
+		if notifyBuyResult ~= nil then
+			notifyBuyResult:FireClient(player, false, "NotLoaded")
+		end
+		return
+	end
+
+	if not RateLimiter.Check(player, "ShopBuy") then
+		if notifyBuyResult ~= nil then
+			notifyBuyResult:FireClient(player, false, "RateLimited")
+		end
+		return
+	end
+
+	local ok, reason = ShopService.Buy(player, itemId, amount)
+	if notifyBuyResult ~= nil then
+		notifyBuyResult:FireClient(player, ok, reason)
+	end
+end
+
+-- Gửi trạng thái shop cho người chơi mới vào để UI hiển thị đúng tồn kho.
+local function handlePlayerAdded(player: Player)
+	ShopService.SendShopState(player)
+end
+
+function ShopService.Init()
+	if isInitialized then
+		return
+	end
+	isInitialized = true
+
+	-- Tạo Remotes ở một nơi duy nhất, tên lấy từ shared/Network.
+	local remotesFolder = ReplicatedStorage:FindFirstChild("Remotes")
+	if remotesFolder == nil then
+		remotesFolder = Instance.new("Folder")
+		remotesFolder.Name = "Remotes"
+		remotesFolder.Parent = ReplicatedStorage
+	end
+
+	local requestBuy = Instance.new("RemoteEvent")
+	requestBuy.Name = RemoteNames.RequestBuy
+	requestBuy.Parent = remotesFolder
+
+	notifyBuyResult = Instance.new("RemoteEvent")
+	notifyBuyResult.Name = RemoteNames.NotifyBuyResult
+	notifyBuyResult.Parent = remotesFolder
+
+	notifyShopState = Instance.new("RemoteEvent")
+	notifyShopState.Name = RemoteNames.NotifyShopState
+	notifyShopState.Parent = remotesFolder
+
+	requestBuy.OnServerEvent:Connect(onRequestBuy)
+
+	Players.PlayerAdded:Connect(handlePlayerAdded)
+	for _, player in Players:GetPlayers() do
+		task.spawn(handlePlayerAdded, player)
+	end
+end
+
+return ShopService

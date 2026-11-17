@@ -1,0 +1,18 @@
+{
+  "ClassName": "Sky",
+  "Properties": {
+    "SkyboxBk": "rbxassetid://6444884337",
+    "SkyboxDn": "rbxassetid://6444884785",
+    "SkyboxFt": "rbxassetid://6444884337",
+    "SkyboxLf": "rbxassetid://6444884337",
+    "SkyboxRt": "rbxassetid://6444884337",
+    "SkyboxUp": "rbxassetid://6412503613",
+    "SunTextureId": "rbxassetid://6196665106",
+    "MoonTextureId": "rbxassetid://6444320592",
+    "SunAngularSize": 11,
+    "MoonAngularSize": 11,
+    "StarCount": 3000,
+    "CelestialBodiesShown": true,
+    "SkyboxOrientation": [0, 0, 0]
+  }
+}

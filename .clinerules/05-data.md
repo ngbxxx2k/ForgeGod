@@ -22,7 +22,8 @@
 ## Kho đồ
 - Kho dùng chung: số chỗ đã dùng = tổng số lượng trong `Items` + số vũ khí trong `Weapons`. So với `Capacity.Items`.
 - Vũ khí lưu **từng món** trong `Weapons` (mỗi món có Id riêng). Không gộp vũ khí vào dạng `[itemId] = số lượng`.
-- Vũ khí đang đeo (`Equipped`) không được bán, rèn, xoá. Gỡ xuống trước.
+- Vũ khí đang đeo (`Equipped`) không được bán, xoá. Gỡ xuống trước.
+  - Ngoại lệ (người dùng đã duyệt): bàn rèn chỉ rèn vũ khí đang đeo (món đeo sau cùng). Vũ khí bị vỡ khi rèn thì tự gỡ khỏi `Equipped`.
 - Mutation chỉ ghi một lần cho mỗi vũ khí (trừ khi dùng đá tẩy).
 
 ## Bảng xếp hạng
