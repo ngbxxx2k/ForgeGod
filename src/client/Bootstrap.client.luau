@@ -29,6 +29,7 @@ local StatusEffectsScreen = require(script.Parent.UI.Screens.StatusEffectsScreen
 local StatusEffectController = require(script.Parent.Controllers.StatusEffectController)
 local VoidheartFx = require(script.Parent.Effects.VoidheartFx)
 local ForgeStrikeFx = require(script.Parent.Effects.ForgeStrikeFx)
+local OreCrucibleFx = require(script.Parent.Effects.OreCrucibleFx)
 
 PlayerStateController.Init()
 UiSound.Init()
@@ -59,3 +60,4 @@ StatusEffectsScreen.Init()
 StatusEffectController.Init()
 VoidheartFx.Init()
 ForgeStrikeFx.Init()
+OreCrucibleFx.Init()

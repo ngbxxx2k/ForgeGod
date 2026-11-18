@@ -21,6 +21,7 @@ local WeaponLockService = require(script.Parent.Services.WeaponLockService)
 local BuffService = require(script.Parent.Services.BuffService)
 local ShopRestockSystem = require(script.Parent.Systems.ShopRestockSystem)
 local WeatherSystem = require(script.Parent.Systems.WeatherSystem)
+local OreCrucibleSystem = require(script.Parent.Systems.OreCrucibleSystem)
 
 DataService.Init()
 LeaderboardService.Init()
@@ -38,5 +39,6 @@ WeaponLockService.Init()
 BuffService.Init()
 ShopRestockSystem.Init()
 WeatherSystem.Init()
+OreCrucibleSystem.Init()
 
 
