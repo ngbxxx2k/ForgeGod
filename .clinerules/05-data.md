@@ -20,10 +20,11 @@
 - Không lưu trạng thái chung toàn server (restock, thời tiết). Xem file 04.
 
 ## Kho đồ
-- Kho dùng chung: số chỗ đã dùng = tổng số lượng trong `Items` + số vũ khí trong `Weapons`. So với `Capacity.Items`.
+- Kho dùng chung: số chỗ đã dùng = số vũ khí trong `Weapons`. So với `Capacity.Items`. Quặng và vật phẩm buff (kể cả Mutation Eraser) không tính vào giới hạn.
 - Vũ khí lưu **từng món** trong `Weapons` (mỗi món có Id riêng). Không gộp vũ khí vào dạng `[itemId] = số lượng`.
-- Vũ khí đang đeo (`Equipped`) không được bán, xoá. Gỡ xuống trước.
-  - Ngoại lệ (người dùng đã duyệt): bàn rèn chỉ rèn vũ khí đang đeo (món đeo sau cùng). Vũ khí bị vỡ khi rèn thì tự gỡ khỏi `Equipped`.
+- `Equipped` là Loadout: vũ khí trong đó sinh tiền mỗi giây (`server/Systems/IncomeSystem`), tối đa `Capacity.Loadout` món. Vũ khí trong Loadout không được bán, xoá, rèn. Gỡ xuống trước.
+- Vũ khí cầm trên tay (nút Equip trong Backpack) chỉ để hiển thị, lưu trong bộ nhớ server (`HoldService`), không lưu DataStore.
+- Bàn rèn: client gửi Id vũ khí muốn rèn kèm mỗi yêu cầu; server kiểm tra vũ khí thuộc người chơi, không nằm trong `Equipped`, chưa vỡ, chưa khoá. Không lưu lựa chọn vào DataStore.
 - Mutation chỉ ghi một lần cho mỗi vũ khí (trừ khi dùng đá tẩy).
 
 ## Bảng xếp hạng

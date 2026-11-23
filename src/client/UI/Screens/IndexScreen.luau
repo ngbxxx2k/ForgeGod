@@ -9,6 +9,7 @@ local ScreenRegistry = require(script.Parent.Parent.Components.ScreenRegistry)
 local RarityGradient = require(script.Parent.Parent.Components.RarityGradient)
 local ScrollCanvas = require(script.Parent.Parent.Components.ScrollCanvas)
 local IndexMessages = require(ReplicatedStorage.Shared.Constants.IndexMessages)
+local MutationColors = require(ReplicatedStorage.Shared.Constants.MutationColors)
 local UiSound = require(script.Parent.Parent.Parent.Effects.UiSound)
 local OpenAnimation = require(script.Parent.Parent.Components.OpenAnimation)
 
@@ -29,6 +30,9 @@ local GRID_NAME = "WeaponGrid"
 local STRETCHED_PART_NAMES = { "WeaponGrid", "Showcase" }
 local SHIFTED_PART_NAMES = { "ProgressBar", "RewardIcon" }
 local HOVER_ATTRIBUTE = "HasHoverEffect"
+local REWARD_ICON_NAME = "RewardIcon"
+local FOCUS_LINE_RATIO = 0.35
+local SCROLL_END_TOLERANCE = 1
 
 export type IndexEntry = {
 	Id: string,
@@ -38,24 +42,25 @@ export type IndexEntry = {
 	Image: string?,
 }
 
+export type RewardInfo = {
+	DisplayName: string,
+	Image: string?,
+	IsClaimable: boolean,
+	IsClaimed: boolean,
+}
+
 export type IndexCollection = {
 	Id: string,
 	Rarity: string,
 	ChancePercent: string,
 	Image: string?,
 	Entries: { IndexEntry },
+	Reward: RewardInfo?,
 }
 
 export type IndexTab = {
 	Id: string,
 	DisplayName: string,
-}
-
-export type RewardInfo = {
-	DisplayName: string,
-	Image: string?,
-	IsClaimable: boolean,
-	IsClaimed: boolean,
 }
 
 local IndexScreen = {}
@@ -67,6 +72,8 @@ local collectionList: ScrollingFrame? = nil
 local tabList: ScrollingFrame? = nil
 local collectionTemplate: Frame? = nil
 local tabTemplate: TextButton? = nil
+local collectionData: { [Frame]: IndexCollection } = {}
+local focusedFrame: Frame? = nil
 
 local function findChild(parent: Instance, path: { string }): Instance?
 	local current: Instance? = parent
@@ -312,8 +319,93 @@ local function createCollection(template: Frame, data: IndexCollection, order: n
 	fillShowcase(frame, data)
 	fillGrid(frame, data.Entries)
 	fillProgress(frame, data.Entries)
+	setImage(frame, { REWARD_ICON_NAME }, data.Reward and data.Reward.Image)
 	bindCollectionHeight(frame)
 	return frame
+end
+
+local function applyReward(reward: RewardInfo?)
+	local rewardFrame = main and main:FindFirstChild("Reward")
+	if not rewardFrame or not rewardFrame:IsA("GuiObject") then
+		return
+	end
+	rewardFrame.Visible = reward ~= nil
+	if not reward then
+		return
+	end
+	setText(rewardFrame, { "OreName" }, string.upper(reward.DisplayName))
+	setImage(rewardFrame, { "OreIcon" }, reward.Image)
+	local buttonText = if reward.IsClaimed
+		then IndexMessages.Claimed
+		elseif reward.IsClaimable then IndexMessages.Claim
+		else IndexMessages.Locked
+	setText(rewardFrame, { "ClaimButton" }, buttonText)
+end
+
+local function getPreviewEntry(entries: { IndexEntry }): IndexEntry?
+	for _, entry in entries do
+		if entry.IsUnlocked then
+			return entry
+		end
+	end
+	return entries[1]
+end
+
+local function focusCollection(frame: Frame)
+	local data = collectionData[frame]
+	if frame == focusedFrame or not data then
+		return
+	end
+	focusedFrame = frame
+	applyReward(data.Reward)
+	local entry = getPreviewEntry(data.Entries)
+	if entry then
+		showPreview(entry)
+	end
+end
+
+local function isScrolledToEnd(list: ScrollingFrame): boolean
+	local maxScroll = list.AbsoluteCanvasSize.Y - list.AbsoluteWindowSize.Y
+	return maxScroll > 0 and list.CanvasPosition.Y >= maxScroll - SCROLL_END_TOLERANCE
+end
+
+local function isBetterFocus(top: number, best: Frame?, isAtEnd: boolean): boolean
+	if not best then
+		return true
+	end
+	local bestTop = best.AbsolutePosition.Y
+	return if isAtEnd then top > bestTop else top < bestTop
+end
+
+local function findFocusedCollection(list: ScrollingFrame): Frame?
+	local isAtEnd = isScrolledToEnd(list)
+	local focusLine = list.AbsolutePosition.Y + list.AbsoluteSize.Y * FOCUS_LINE_RATIO
+	local best: Frame? = nil
+	for frame in collectionData do
+		local top = frame.AbsolutePosition.Y
+		local isCandidate = isAtEnd or top + frame.AbsoluteSize.Y >= focusLine
+		if isCandidate and isBetterFocus(top, best, isAtEnd) then
+			best = frame
+		end
+	end
+	return best
+end
+
+local function refreshFocus()
+	local list = collectionList
+	local frame = list and findFocusedCollection(list)
+	if frame then
+		focusCollection(frame)
+	end
+end
+
+local function applyTabColor(button: GuiObject, tabId: string)
+	local mutationColor = MutationColors.Get(tabId)
+	local gradient = button:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")
+	gradient.Color = mutationColor.Gradient
+	gradient.Rotation = mutationColor.Rotation
+	button.BackgroundColor3 = Color3.new(1, 1, 1)
+	gradient.Parent = button
 end
 
 local function highlightTab(selectedId: string)
@@ -336,6 +428,7 @@ local function createTab(template: TextButton, tab: IndexTab, order: number, onS
 	button.Visible = true
 	button.Text = string.upper(tab.DisplayName)
 	button:SetAttribute(TAB_ID_ATTRIBUTE, tab.Id)
+	applyTabColor(button, tab.Id)
 	button.Activated:Connect(function()
 		highlightTab(tab.Id)
 		onSelected(tab.Id)
@@ -388,13 +481,20 @@ function IndexScreen.RenderCollections(collections: { IndexCollection })
 		return
 	end
 	clearChildren(list, COLLECTION_NAME)
+	table.clear(collectionData)
+	focusedFrame = nil
+	local firstFrame: Frame? = nil
 	for index, data in collections do
-		createCollection(template, data, index).Parent = list
+		local frame = createCollection(template, data, index)
+		collectionData[frame] = data
+		frame.Parent = list
+		firstFrame = firstFrame or frame
 	end
 	list.CanvasPosition = Vector2.zero
-	local firstEntry = collections[1] and collections[1].Entries[1]
-	if firstEntry then
-		showPreview(firstEntry)
+	if firstFrame then
+		focusCollection(firstFrame)
+	else
+		applyReward(nil)
 	end
 end
 
@@ -412,20 +512,6 @@ function IndexScreen.RenderTabs(tabs: { IndexTab }, selectedId: string?, onSelec
 	if selectedId then
 		highlightTab(selectedId)
 	end
-end
-
-function IndexScreen.SetReward(reward: RewardInfo)
-	local rewardFrame = main and main:FindFirstChild("Reward")
-	if not rewardFrame then
-		return
-	end
-	setText(rewardFrame, { "OreName" }, string.upper(reward.DisplayName))
-	setImage(rewardFrame, { "OreIcon" }, reward.Image)
-	local buttonText = if reward.IsClaimed
-		then IndexMessages.Claimed
-		elseif reward.IsClaimable then IndexMessages.Claim
-		else IndexMessages.Locked
-	setText(rewardFrame, { "ClaimButton" }, buttonText)
 end
 
 function IndexScreen.SetTotalProgress(unlocked: number, total: number)
@@ -470,6 +556,7 @@ function IndexScreen.Init()
 	HudSlide.TrackScreen(root)
 	ScreenRegistry.Register(root)
 	bindCanvasToLayout(collections)
+	collections:GetPropertyChangedSignal("CanvasPosition"):Connect(refreshFocus)
 	bindCloseButton(mainFrame)
 	HudButton.Bind(INDEX_BUTTON_NAME, function()
 		setIndexVisible(not root.Visible)

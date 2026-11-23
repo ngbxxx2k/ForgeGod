@@ -16,6 +16,7 @@ local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteN
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
+local ShopRange = require(script.Parent.Parent.Security.ShopRange)
 
 local ShopRestockTable = require(
 	ServerStorage:WaitForChild("LootTables"):WaitForChild("ShopRestockTable")
@@ -90,6 +91,9 @@ function ShopService.Buy(player: Player, itemId: string, amount: number): (boole
 	local price = ShopConfig.ItemPrices[itemId]
 	if price == nil then
 		return false, "InvalidItem"
+	end
+	if not ShopRange.IsNear(player, itemId) then
+		return false, "TooFar"
 	end
 
 	local inStock = currentStock[itemId] or 0

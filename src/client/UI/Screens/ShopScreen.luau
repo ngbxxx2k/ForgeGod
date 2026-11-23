@@ -1,19 +1,18 @@
 --!strict
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local HudButton = require(script.Parent.Parent.Components.HudButton)
 local HudSlide = require(script.Parent.Parent.Components.HudSlide)
 local ScreenRegistry = require(script.Parent.Parent.Components.ScreenRegistry)
 local RarityGradient = require(script.Parent.Parent.Components.RarityGradient)
 local ScrollCanvas = require(script.Parent.Parent.Components.ScrollCanvas)
 local UiSound = require(script.Parent.Parent.Parent.Effects.UiSound)
 local OpenAnimation = require(script.Parent.Parent.Components.OpenAnimation)
+local ShopColors = require(ReplicatedStorage.Shared.Constants.ShopColors)
 
 local SHOP_GUI_NAME = "ShopGui"
 local BUTTON_LABEL_NAME = "Label"
-local ORE_SHOP_BUTTON_NAME = "OreShopButton"
-local ITEM_SHOP_BUTTON_NAME = "ItemShopButton"
 local ITEM_CARD_NAME = "ItemCard"
 local TEMPLATE_NAME = "ItemCardTemplate"
 local BUY_ROW_NAME = "BuyRow"
@@ -22,6 +21,8 @@ local PRICE_FORMAT = "$%d"
 local CARD_ORDER_STEP = 10
 local SELECTED_STROKE_COLOR = Color3.new(1, 1, 1)
 local DEFAULT_STROKE_COLOR = Color3.fromRGB(15, 15, 25)
+
+local RARITY_BADGE_NAME = "RarityBadge"
 
 export type ShopCategory = "Ore" | "Item"
 
@@ -125,6 +126,10 @@ local function fillCard(card: Frame, entry: ShopEntry)
 	setText(card, "Stock", string.format(STOCK_FORMAT, entry.Stock))
 	setText(card, "Price", string.format(PRICE_FORMAT, entry.Price))
 	setText(card, "Rarity", entry.Rarity)
+	local rarityBadge = card:FindFirstChild(RARITY_BADGE_NAME)
+	if rarityBadge and rarityBadge:IsA("GuiObject") then
+		RarityGradient.Apply(rarityBadge, entry.Rarity)
+	end
 	local slot = card:FindFirstChild("Slot")
 	if slot and slot:IsA("GuiObject") then
 		RarityGradient.Apply(slot, entry.Rarity)
@@ -166,46 +171,39 @@ local function bindBuyButton(row: Frame)
 	end)
 end
 
-local function setShopVisible(isVisible: boolean)
-	local frame = mainFrame
-	if not frame then
-		return
+local function applyHeaderColor(category: ShopCategory)
+	local header = mainFrame and mainFrame:FindFirstChild("Header")
+	local gradient = header and header:FindFirstChildOfClass("UIGradient")
+	if gradient then
+		gradient.Color = ShopColors.HeaderGradients[category]
 	end
-	if not isVisible then
-		deselectCard()
-	end
-	frame.Visible = isVisible
 end
 
-local function toggleCategory(category: ShopCategory)
+local function selectCategory(category: ShopCategory)
+	if currentCategory == category then
+		return
+	end
+	deselectCard()
+	currentCategory = category
+	applyHeaderColor(category)
+	if categoryHandler then
+		categoryHandler(category)
+	end
+end
+
+local function closeShop()
 	local frame = mainFrame
-	if not frame then
+	if not frame or not frame.Visible then
 		return
 	end
-	if frame.Visible and currentCategory == category then
-		setShopVisible(false)
-		return
-	end
-	if currentCategory ~= category then
-		deselectCard()
-		currentCategory = category
-		if categoryHandler then
-			categoryHandler(category)
-		end
-	end
-	setShopVisible(true)
+	deselectCard()
+	OpenAnimation.Close(frame)
 end
 
 local function bindCloseButton(main: Instance)
 	local closeButton = main:WaitForChild("Header"):WaitForChild("CloseButton")
 	if closeButton:IsA("GuiButton") then
-		closeButton.Activated:Connect(function()
-			local frame = mainFrame
-			if frame then
-				deselectCard()
-				OpenAnimation.Close(frame)
-			end
-		end)
+		closeButton.Activated:Connect(closeShop)
 	end
 end
 
@@ -251,6 +249,20 @@ end
 
 function ShopScreen.GetCategory(): ShopCategory?
 	return currentCategory
+end
+
+function ShopScreen.Open(category: ShopCategory)
+	local frame = mainFrame
+	if not frame then
+		return
+	end
+	selectCategory(category)
+	ScreenRegistry.CloseAllExcept(frame)
+	OpenAnimation.Open(frame)
+end
+
+function ShopScreen.Close()
+	closeShop()
 end
 
 function ShopScreen.SetHeaderIcon(image: string)
@@ -307,12 +319,6 @@ function ShopScreen.Init()
 	bindBuyButton(rowAsFrame)
 	bindCloseButton(main)
 	list.ChildAdded:Connect(bindCard)
-	HudButton.Bind(ORE_SHOP_BUTTON_NAME, function()
-		toggleCategory("Ore")
-	end)
-	HudButton.Bind(ITEM_SHOP_BUTTON_NAME, function()
-		toggleCategory("Item")
-	end)
 end
 
 return ShopScreen

@@ -10,6 +10,7 @@ local ShopMessages = {}
 ShopMessages.PurchaseSuccess = "Purchase complete!"
 ShopMessages.NotificationTitle = "Shop"
 ShopMessages.Restocking = "Restocking..."
+ShopMessages.RestockedNotice = "Ore Shop & Item Shop restocked!"
 ShopMessages.UnknownError = "Something went wrong."
 
 ShopMessages.Categories = {
@@ -32,6 +33,7 @@ ShopMessages.Reasons = {
 	InventoryFull = "Your inventory is full.",
 	NotLoaded = "Your data is still loading, please wait.",
 	RateLimited = "You are buying too fast, slow down.",
+	TooFar = "Step into the shop circle to buy.",
 }
 
 return ShopMessages

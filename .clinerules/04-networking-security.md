@@ -14,6 +14,7 @@ Client **không đáng tin**. Mọi thứ client gửi lên đều có thể b�
 - Server gửi cho client chỉ phần dữ liệu client cần hiển thị. Không gửi tỉ lệ rơi, tỉ lệ vỡ, seed ngẫu nhiên.
   - Ngoại lệ (người dùng đã duyệt): tỉ lệ % kết quả lần đập rèn kế tiếp được gửi để UI rèn hiển thị. Chỉ gửi %, không gửi trọng số hay seed.
   - Ngoại lệ (người dùng đã duyệt): tỉ lệ xuất hiện mỗi lần restock (`AppearanceRate`) được gửi để bảng Odds của Ore Shop/Item Shop hiển thị. Không gửi khoảng số lượng hay seed.
+  - Ngoại lệ (người dùng đã duyệt): tỉ lệ % ra từng bậc của công thức nấu quặng (đã tính may mắn) được gửi để bảng Smelt Odds của lò nấu hiển thị, chỉ khi đủ 5 quặng người chơi sở hữu. Chỉ gửi %, không gửi trọng số, khoảng điểm hay seed.
 - Dùng `RemoteEvent` khi không cần trả lời. Hạn chế `RemoteFunction` từ server gọi client (client có thể treo script).
 
 ## Quy tắc ngẫu nhiên và kinh tế

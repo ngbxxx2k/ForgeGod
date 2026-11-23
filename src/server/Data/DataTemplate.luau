@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local sharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local BuffConfig = require(sharedConfig:WaitForChild("BuffConfig"))
+local LoadoutConfig = require(sharedConfig:WaitForChild("LoadoutConfig"))
 
 local DataTemplate = {}
 
@@ -10,15 +11,17 @@ local DataTemplate = {}
 DataTemplate.SCHEMA_VERSION = 4
 
 DataTemplate.Limits = {
-	DefaultItemSlots = 50, -- kho vật phẩm (tổng số lượng quặng + thuốc + vũ khí)
-	MaxEquipped = 3, -- vũ khí treo lưng
-	MaxWeaponLevel = 50, -- cấp vũ khí tối đa
-	MaxForgePoints = 10, -- điểm rèn tối đa (đạt 10 thì reset về 0)
+	DefaultItemSlots = 50, -- kho vật phẩm (chỉ đếm vũ khí, quặng và buff không tính)
+	DefaultLoadoutSlots = LoadoutConfig.DefaultSlots, -- số ô Loadout (vũ khí sinh tiền mỗi giây)
+	MaxWeaponLevel = 100, -- cấp tối đa tuyệt đối (theo độ hiếm: ForgeConfig)
+	MaxForgePoints = 10, -- điểm rèn tối đa (chỉ reset về 0 khi vượt quá mức này)
 	LevelsPerShape = 10, -- mỗi 10 cấp đổi hình dạng
+	MinShapeStage = 1, -- dạng ban đầu của vũ khí
 	MaxShapeStage = 5, -- hiện có 5 dạng
+	MaxProcessedPurchases = 50, -- số mã giao dịch Robux gần nhất giữ lại để chống cộng trùng
 }
 
-DataTemplate.Rarities = { "Common", "Rare", "Epic", "Legendary", "Mythic" }
+DataTemplate.Rarities = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
 
 DataTemplate.WeaponStates = {
 	Blank = "Blank", -- phôi chưa rèn
@@ -75,13 +78,17 @@ DataTemplate.Default = {
 	-- Buff dùng 1 lần đã kích hoạt nhưng chưa bị consume: [itemId] = số lần còn lại
 	ArmedBuffs = {} :: { [string]: number },
 
-	-- Vũ khí treo lưng: mảng weaponId
+	-- Vũ khí trong Loadout (sinh tiền mỗi giây): mảng weaponId
 	Equipped = {} :: { string },
 
 	-- Sức chứa hiện tại
 	Capacity = {
 		Items = DataTemplate.Limits.DefaultItemSlots,
+		Loadout = DataTemplate.Limits.DefaultLoadoutSlots, -- = số trụ của plot, nâng qua bảng Upgrade Plot
 	},
+
+	-- Mã giao dịch Robux (PurchaseId) đã cộng quà, mới nhất ở cuối, tối đa MaxProcessedPurchases
+	ProcessedPurchases = {} :: { string },
 
 	Stats = {
 		TotalForges = 0,
@@ -89,6 +96,8 @@ DataTemplate.Default = {
 		TotalCoinsEarned = 0,
 		HighestWeaponValue = 0,
 		HighestWeaponLevel = 0,
+		HighestWeaponIncome = 0, -- $/s cao nhất của một vũ khí từng sở hữu (bảng xếp hạng)
+		TotalRobuxSpent = 0, -- tổng Robux đã chi trong game (bảng xếp hạng Donated)
 	},
 }
 
@@ -97,13 +106,17 @@ DataTemplate.Default = {
 	{
 		Id          : string   -- mã định danh duy nhất
 		Rarity      : string   -- Common..Mythic
-		Tier        : number   -- 1..5 (bậc độ hiếm)
+		Tier        : number   -- 1..6 (bậc độ hiếm)
 		WeaponType  : string   -- mã loại vũ khí trong WeaponCatalog (CommonSword...)
 		State       : string   -- Blank | Forged | Broken
 		Level       : number   -- 0..50
 		ForgePoints : number   -- 0..10
+		ShapeStage  : number?  -- dạng hiện tại 1..MaxShapeStage (nil = 1)
+		ShapeStrikes: number?  -- số lượt đập kể từ lần đổi hình gần nhất (nil = 0)
+		FrenzyStrikes: number? -- số lượt đập thường kể từ lần frenzy gần nhất (nil = 0)
 		Mutation    : string?  -- nil hoặc tên mutation
-		BaseValue   : number   -- giá trị phôi gốc
+		Scale       : number?  -- hệ số kích thước 1..10 (nil = 1); cân nặng suy ra từ Scale
+		BaseValue   : number   -- giá trị phôi gốc (đã nhân hệ số kích thước)
 		Value       : number   -- giá bán hiện tại
 		Recipe      : { [string]: number } -- quặng đã dùng: [oreId] = số lượng
 		ValueHistory: { number }? -- giá trước mỗi bậc trong vòng rèn hiện tại

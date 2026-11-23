@@ -7,11 +7,13 @@ local ItemVisuals = require(ReplicatedStorage.Shared.Constants.ItemVisuals)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local ShopConfig = require(ReplicatedStorage.Shared.Config.ShopConfig)
 local ShopMessages = require(ReplicatedStorage.Shared.Constants.ShopMessages)
+local ShopColors = require(ReplicatedStorage.Shared.Constants.ShopColors)
 local UiIcons = require(ReplicatedStorage.Shared.Constants.UiIcons)
 local BackpackMessages = require(ReplicatedStorage.Shared.Constants.BackpackMessages)
 local ShopScreen = require(script.Parent.Parent.UI.Screens.ShopScreen)
 local OddsScreen = require(script.Parent.Parent.UI.Screens.OddsScreen)
 local Toast = require(script.Parent.Parent.UI.Components.Toast)
+local RestockNotice = require(script.Parent.Parent.UI.Screens.RestockNotice)
 
 type ShopEntry = ShopScreen.ShopEntry
 type ShopCategory = ShopScreen.ShopCategory
@@ -33,6 +35,7 @@ local ShopController = {}
 local isInitialized = false
 local requestBuy: RemoteEvent? = nil
 local currentCycle = 0
+local hasCycle = false
 local restockInterval = ShopConfig.RestockInterval
 local currentCategory: ShopCategory = DEFAULT_CATEGORY
 local currentStock: { [string]: number } = {}
@@ -60,6 +63,7 @@ local function buildOddsEntry(itemId: string): OddsEntry
 	return {
 		DisplayName = BackpackMessages.ItemNames[itemId] or itemId,
 		Chance = currentOdds[itemId] or 0,
+		Rarity = if visual then visual.RarityLabel else nil,
 		Image = if visual then visual.Image else nil,
 		Color = if visual then visual.Color else nil,
 	}
@@ -77,6 +81,7 @@ local function renderCategory()
 	OddsScreen.SetTitle(ShopMessages.Categories[currentCategory].OddsTitle)
 	ShopScreen.SetHeaderIcon(UiIcons.ShopCategories[currentCategory])
 	OddsScreen.SetIcon(UiIcons.ShopCategories[currentCategory])
+	OddsScreen.SetHeaderGradient(ShopColors.HeaderGradients[currentCategory])
 end
 
 local function onCategoryChanged(category: ShopCategory)
@@ -89,7 +94,11 @@ local function onShopState(state: any)
 		return
 	end
 	if type(state.Cycle) == "number" then
+		if hasCycle and state.Cycle > currentCycle then
+			RestockNotice.Show(ShopMessages.RestockedNotice)
+		end
 		currentCycle = state.Cycle
+		hasCycle = true
 	end
 	if type(state.RestockInterval) == "number" then
 		restockInterval = state.RestockInterval

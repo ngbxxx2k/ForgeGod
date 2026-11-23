@@ -43,6 +43,7 @@ end
 
 local function newEmitter(parent: Instance, properties: { [string]: any }): ParticleEmitter
 	local emitter = Instance.new("ParticleEmitter")
+	emitter.Archivable = false
 	for key, value in properties do
 		(emitter :: any)[key] = value
 	end
@@ -72,6 +73,7 @@ end
 
 local function newAttachment(set: EmitterSet, parent: BasePart, worldPosition: Vector3): Attachment
 	local attachment = Instance.new("Attachment")
+	attachment.Archivable = false
 	attachment.Name = FOLDER_NAME
 	attachment.Parent = parent
 	attachment.WorldPosition = worldPosition
@@ -107,6 +109,7 @@ end
 
 local function addCoreLight(set: EmitterSet, rig: VoidheartRig.Rig)
 	local light = Instance.new("PointLight")
+	light.Archivable = false
 	light.Color = colors.Glow
 	light.Range = VoidheartFxConfig.CoreLight.RangeFraction * rig.Length
 	light.Brightness = VoidheartFxConfig.CoreLight.BrightnessMin
@@ -217,6 +220,7 @@ local function addRingTrails(set: EmitterSet, rig: VoidheartRig.Rig, frame: CFra
 		local radius = VoidheartRig.HalfExtentAlong(part, frame.RightVector)
 		for _, direction in { frame.RightVector, -frame.RightVector } do
 			local trail = Instance.new("Trail")
+			trail.Archivable = false
 			trail.Attachment0 = newAttachment(set, part, center + direction * (radius + width))
 			trail.Attachment1 = newAttachment(set, part, center + direction * (radius - width))
 			trail.Lifetime = config.Lifetime
@@ -244,6 +248,7 @@ end
 
 function VoidheartEmitters.Create(rig: VoidheartRig.Rig): EmitterSet
 	local folder = Instance.new("Folder")
+	folder.Archivable = false
 	folder.Name = FOLDER_NAME
 	local set: EmitterSet = {
 		Folder = folder,

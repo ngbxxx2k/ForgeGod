@@ -1,14 +1,23 @@
 --!strict
 
 local EquipMessages = {
-	NotificationTitle = "Backpack",
+	NotificationTitle = "Loadout",
+	HoldTitle = "Backpack",
 	UnknownError = "Something went wrong.",
+	EquipText = "EQUIP",
+	UnequipText = "UNEQUIP",
+	IncomeFormat = "$%s/s",
+	SlotsFormat = "EQUIPPED: %d/%d",
+	EmptyText = "NO WEAPONS YET",
 }
 
 EquipMessages.Reasons = {
 	WeaponBroken = "Broken weapons cannot be equipped.",
 	AlreadyEquipped = "This weapon is already equipped.",
-	EquipLimitReached = "You can only equip 3 weapons.",
+	EquipLimitReached = "Your loadout is full.",
+	NoWeapons = "You have no weapons to equip.",
+	NoCharacter = "Your character is not ready.",
+	NoModel = "This weapon has no model yet.",
 	NotEquipped = "This weapon is not equipped.",
 	WeaponNotFound = "Weapon not found.",
 	RateLimited = "Slow down!",

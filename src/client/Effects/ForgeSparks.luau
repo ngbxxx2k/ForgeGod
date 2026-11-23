@@ -3,7 +3,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local ForgeFrenzyFxConfig = require(ReplicatedStorage.Shared.Config.ForgeFrenzyFxConfig)
 local ForgeStrikeConfig = require(ReplicatedStorage.Shared.Config.ForgeStrikeConfig)
+local Rainbow = require(ReplicatedStorage.Shared.Utils.Rainbow)
 
 local FX_ATTACHMENT_NAME = "ForgeSparksFx"
 local EMBER_FLICKER_STEPS = 8
@@ -20,6 +22,8 @@ export type SparkSet = {
 	Dust: ParticleEmitter,
 	Light: PointLight,
 	FlashToken: number,
+	IsRainbow: boolean,
+	Palette: { [ParticleEmitter]: ColorSequence },
 }
 
 local ForgeSparks = {}
@@ -186,6 +190,30 @@ local function randomizeDirection(set: SparkSet)
 	set.Sparks.SpreadAngle = Vector2.new(spread, spread)
 end
 
+local function paintRainbow(set: SparkSet)
+	local config = ForgeFrenzyFxConfig
+	local steps = config.GradientSteps
+	for emitter in set.Palette do
+		emitter.Color = Rainbow.Sequence(random:NextNumber(), steps, config.Saturation, config.Brightness)
+	end
+	set.Light.Color = Rainbow.At(random:NextNumber(), config.Sparks.LightSaturation, config.Brightness)
+end
+
+local function restorePalette(set: SparkSet)
+	for emitter, sequence in set.Palette do
+		emitter.Color = sequence
+	end
+	set.Light.Color = colors.Flash
+end
+
+local function buildPalette(emitters: { ParticleEmitter }): { [ParticleEmitter]: ColorSequence }
+	local palette = {}
+	for _, emitter in emitters do
+		palette[emitter] = emitter.Color
+	end
+	return palette
+end
+
 function ForgeSparks.Create(impact: Attachment): SparkSet?
 	local parent = impact.Parent
 	if parent == nil or not parent:IsA("BasePart") then
@@ -196,16 +224,21 @@ function ForgeSparks.Create(impact: Attachment): SparkSet?
 	attachment.Name = FX_ATTACHMENT_NAME
 	attachment.CFrame = impact.CFrame
 	attachment.Parent = parent
+	local sparks = createSparks(attachment)
+	local embers = createEmbers(attachment)
+	local flare = createFlare(attachment)
 	return {
 		Attachment = attachment,
 		Base = impact.CFrame,
-		Sparks = createSparks(attachment),
-		Embers = createEmbers(attachment),
-		Flare = createFlare(attachment),
+		Sparks = sparks,
+		Embers = embers,
+		Flare = flare,
 		Smoke = createSmoke(attachment),
 		Dust = createDust(attachment),
 		Light = createLight(attachment),
 		FlashToken = 0,
+		IsRainbow = false,
+		Palette = buildPalette({ sparks, embers, flare }),
 	}
 end
 
@@ -214,12 +247,22 @@ function ForgeSparks.Burst(set: SparkSet)
 		return
 	end
 	randomizeDirection(set)
+	if set.IsRainbow then
+		paintRainbow(set)
+	end
 	set.Sparks:Emit(pickInteger(ForgeStrikeConfig.Sparks.Count))
 	set.Embers:Emit(pickInteger(ForgeStrikeConfig.Embers.Count))
 	set.Flare:Emit(1)
 	set.Smoke:Emit(pickInteger(ForgeStrikeConfig.Smoke.Count))
 	set.Dust:Emit(pickInteger(ForgeStrikeConfig.Dust.Count))
 	flash(set)
+end
+
+function ForgeSparks.SetRainbow(set: SparkSet, isRainbow: boolean)
+	set.IsRainbow = isRainbow
+	if not isRainbow then
+		restorePalette(set)
+	end
 end
 
 function ForgeSparks.Destroy(set: SparkSet)

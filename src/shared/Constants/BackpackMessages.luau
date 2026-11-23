@@ -4,12 +4,15 @@ local BackpackMessages = {
 	AmountFormat = "x%d",
 	StorageFormat = "Storage: %d/%d",
 	PriceFormat = "$%s",
+	IncomeFormat = "$%s/s",
 	LevelFormat = "+%d",
 	UseText = "USE",
 	EquipText = "EQUIP",
 	UnequipText = "UNEQUIP",
 	BrokenNameFormat = "%s (Broken)",
 	NoMutationText = "No Mutation",
+	MutationFormat = "Mutation: %s",
+	WeightFormat = "Weight: %s",
 }
 
 BackpackMessages.TabNames = {

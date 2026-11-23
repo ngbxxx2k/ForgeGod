@@ -1,6 +1,9 @@
 --!strict
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local IndexScreen = require(script.Parent.Parent.UI.Screens.IndexScreen)
+local AssetIds = require(ReplicatedStorage.Shared.Constants.AssetIds)
 
 type IndexEntry = IndexScreen.IndexEntry
 type IndexCollection = IndexScreen.IndexCollection
@@ -12,9 +15,10 @@ type RaritySample = {
 	ChancePercent: string,
 	ItemCount: number,
 	UnlockedCount: number,
+	Reward: RewardInfo,
 }
 
-local SAMPLE_IMAGE = "rbxassetid://118131434042679"
+local SAMPLE_IMAGE = AssetIds.Icons.TabWeapon
 local WEAPON_SUFFIX = "Sword"
 local TOTAL_ENTRIES = 160
 local TOTAL_UNLOCKED = 14
@@ -26,14 +30,20 @@ local TABS: { IndexTab } = {
 }
 
 local RARITY_SAMPLES: { RaritySample } = {
-	{ Rarity = "Common", ChancePercent = "38", ItemCount = 6, UnlockedCount = 3 },
-	{ Rarity = "Rare", ChancePercent = "12", ItemCount = 9, UnlockedCount = 4 },
-}
-
-local REWARDS: { [string]: RewardInfo } = {
-	Plasma = { DisplayName = "Diamond", IsClaimable = false, IsClaimed = false },
-	Thunder = { DisplayName = "Ruby", IsClaimable = true, IsClaimed = false },
-	Normal = { DisplayName = "Iron", IsClaimable = false, IsClaimed = true },
+	{
+		Rarity = "Common",
+		ChancePercent = "38",
+		ItemCount = 6,
+		UnlockedCount = 3,
+		Reward = { DisplayName = "Iron", Image = AssetIds.Ores.Icons.Iron, IsClaimable = true, IsClaimed = false },
+	},
+	{
+		Rarity = "Rare",
+		ChancePercent = "12",
+		ItemCount = 9,
+		UnlockedCount = 4,
+		Reward = { DisplayName = "Gold", Image = AssetIds.Ores.Icons.Gold, IsClaimable = false, IsClaimed = false },
+	},
 }
 
 local IndexMockData = {}
@@ -65,13 +75,10 @@ function IndexMockData.GetCollections(tabId: string): { IndexCollection }
 			ChancePercent = sample.ChancePercent,
 			Image = SAMPLE_IMAGE,
 			Entries = buildEntries(tabId, sample),
+			Reward = sample.Reward,
 		})
 	end
 	return collections
-end
-
-function IndexMockData.GetReward(tabId: string): RewardInfo?
-	return REWARDS[tabId]
 end
 
 function IndexMockData.GetTotalProgress(): (number, number)

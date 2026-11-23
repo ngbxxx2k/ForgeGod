@@ -1,14 +1,17 @@
 --!strict
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
+local PlotConfig = require(ReplicatedStorage.Shared.Config.PlotConfig)
 local StationConfig = require(ReplicatedStorage.Shared.Config.StationConfig)
+local PlotStations = require(ReplicatedStorage.Shared.Utils.PlotStations)
 local StationMessages = require(ReplicatedStorage.Shared.Constants.StationMessages)
 local FurnaceController = require(script.Parent.Parent.Controllers.FurnaceController)
 local WeaponPickerController = require(script.Parent.Parent.Controllers.WeaponPickerController)
 
 local PROMPT_NAME = "StationPrompt"
+local OWNED_PLOT_POLL_INTERVAL = 0.5
 
 type Station = {
 	ModelName: string,
@@ -16,6 +19,7 @@ type Station = {
 	ActionText: string,
 	Open: () -> (),
 	Close: () -> (),
+	ClosesOnHide: boolean,
 }
 
 local STATIONS: { Station } = {
@@ -25,13 +29,15 @@ local STATIONS: { Station } = {
 		ActionText = StationMessages.FurnaceActionText,
 		Open = FurnaceController.Open,
 		Close = FurnaceController.Close,
+		ClosesOnHide = false,
 	},
 	{
 		ModelName = StationConfig.ForgeModelName,
 		ObjectText = StationMessages.ForgeObjectText,
 		ActionText = StationMessages.ForgeActionText,
 		Open = WeaponPickerController.Open,
-		Close = WeaponPickerController.Close,
+		Close = WeaponPickerController.ClosePicker,
+		ClosesOnHide = true,
 	},
 }
 
@@ -60,15 +66,27 @@ local function createPrompt(station: Station): ProximityPrompt
 	return prompt
 end
 
-local function setupStation(worldFolder: Instance, station: Station)
-	local model = worldFolder:WaitForChild(station.ModelName)
+local function waitForOwnedPlot(): Model
+	local userId = Players.LocalPlayer.UserId
+	local plot = PlotStations.FindOwnedPlot(userId)
+	while plot == nil do
+		task.wait(OWNED_PLOT_POLL_INTERVAL)
+		plot = PlotStations.FindOwnedPlot(userId)
+	end
+	return plot
+end
+
+local function setupStation(stationsFolder: Instance, station: Station)
+	local model = stationsFolder:WaitForChild(station.ModelName)
 	local part = waitForBasePart(model)
 	local prompt = createPrompt(station)
 	prompt.Triggered:Connect(function()
 		station.Open()
 	end)
 	prompt.PromptHidden:Connect(function()
-		station.Close()
+		if station.ClosesOnHide then
+			station.Close()
+		end
 	end)
 	prompt.Parent = part
 end
@@ -80,9 +98,10 @@ function StationPrompts.Init()
 	isInitialized = true
 
 	task.spawn(function()
-		local worldFolder = Workspace:WaitForChild(StationConfig.WorldFolderName)
+		local plot = waitForOwnedPlot()
+		local stationsFolder = plot:WaitForChild(PlotConfig.StationsFolderName)
 		for _, station in STATIONS do
-			task.spawn(setupStation, worldFolder, station)
+			task.spawn(setupStation, stationsFolder, station)
 		end
 	end)
 end

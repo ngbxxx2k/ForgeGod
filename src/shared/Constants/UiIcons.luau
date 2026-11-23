@@ -1,16 +1,18 @@
 --!strict
 
+local AssetIds = require(script.Parent.AssetIds)
+
 local UiIcons = {
-	Locked = "rbxassetid://101851045516401",
-	Unlocked = "rbxassetid://129683165421634",
+	Locked = AssetIds.Icons.Locked,
+	Unlocked = AssetIds.Icons.Unlocked,
 	BackpackTabs = {
-		Weapon = "rbxassetid://118131434042679",
-		Ore = "rbxassetid://112319306788902",
-		Buff = "rbxassetid://129723095104293",
+		Weapon = AssetIds.Icons.TabWeapon,
+		Ore = AssetIds.Icons.TabOre,
+		Buff = AssetIds.Icons.TabBuff,
 	},
 	ShopCategories = {
-		Ore = "rbxassetid://112319306788902",
-		Item = "rbxassetid://129723095104293",
+		Ore = AssetIds.Icons.TabOre,
+		Item = AssetIds.Icons.TabBuff,
 	},
 }
 

@@ -1,8 +1,8 @@
 --!strict
 --[[
 	WeaponCatalog
-	Trách nhiệm: danh mục 25 loại vũ khí (F3.5): 5 họ vũ khí x 5 độ hiếm.
-	-- PLACEHOLDER: doc chưa đặt tên 25 loại, tên hiển thị dưới đây là tạm.
+	Trách nhiệm: danh mục 30 loại vũ khí (F3.5): 5 họ vũ khí x 6 độ hiếm.
+	-- PLACEHOLDER: doc chưa đặt tên 30 loại, tên hiển thị dưới đây là tạm.
 ]]
 
 type WeaponType = {
@@ -11,12 +11,13 @@ type WeaponType = {
 	DisplayName: string, -- tên hiển thị cho client
 }
 
-local RARITY_ORDER = { "Common", "Rare", "Epic", "Legendary", "Mythic" }
+local RARITY_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
 local FAMILIES = { "Sword", "Axe", "Spear", "Dagger", "Hammer" }
 
 -- PLACEHOLDER: tiền tố tên hiển thị theo độ hiếm.
 local NAME_PREFIX = {
 	Common = "Copper",
+	Uncommon = "Iron",
 	Rare = "Silver",
 	Epic = "Golden",
 	Legendary = "Platinum",

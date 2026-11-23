@@ -5,11 +5,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BackpackScreen = require(script.Parent.Parent.UI.Screens.BackpackScreen)
 local BackpackMessages = require(ReplicatedStorage.Shared.Constants.BackpackMessages)
 local ShopConfig = require(ReplicatedStorage.Shared.Config.ShopConfig)
+local AssetIds = require(ReplicatedStorage.Shared.Constants.AssetIds)
 
 type BackpackItem = BackpackScreen.BackpackItem
 type BackpackTab = BackpackScreen.BackpackTab
 
-local SAMPLE_WEAPON_IMAGE = "rbxassetid://118131434042679"
+local SAMPLE_WEAPON_IMAGE = AssetIds.Icons.TabWeapon
 local STORAGE_CAPACITY = 50
 
 local ORE_SAMPLES = {

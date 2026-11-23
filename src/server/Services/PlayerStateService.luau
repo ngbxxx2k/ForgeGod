@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local shared = ReplicatedStorage:WaitForChild("Shared")
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
+local WeaponWeightConfig = require(shared:WaitForChild("Config"):WaitForChild("WeaponWeightConfig"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
@@ -25,7 +26,9 @@ local function buildWeaponSummary(weapon: any): { [string]: any }
 		State = weapon.State,
 		Level = weapon.Level,
 		ForgePoints = weapon.ForgePoints,
+		ShapeStage = weapon.ShapeStage,
 		Mutation = weapon.Mutation,
+		Scale = weapon.Scale or WeaponWeightConfig.MinScale,
 		Value = weapon.Value,
 		IsLocked = weapon.IsLocked == true,
 	}
@@ -53,6 +56,7 @@ local function buildPayload(data: any): { [string]: any }
 		Weapons = weapons,
 		Equipped = table.clone(data.Equipped),
 		Capacity = data.Capacity.Items,
+		LoadoutCapacity = data.Capacity.Loadout,
 		ActiveBuffs = buildActiveBuffs(data),
 		ArmedBuffs = table.clone(data.ArmedBuffs),
 	}

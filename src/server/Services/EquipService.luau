@@ -4,13 +4,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local shared = ReplicatedStorage:WaitForChild("Shared")
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
+local WeaponIncome = require(shared:WaitForChild("Utils"):WaitForChild("WeaponIncome"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
+local DataTemplate = require(script.Parent.Parent.Data.DataTemplate)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
 
 local REMOTES_FOLDER_NAME = "Remotes"
 local RATE_LIMIT_KEY = "Equip"
+local BROKEN_STATE = DataTemplate.WeaponStates.Broken
 
 local EquipService = {}
 
@@ -56,6 +59,48 @@ local function onRequestUnequip(player: Player, weaponId: any)
 	sendResult(player, ok, unequipReason)
 end
 
+local function getIncome(weapon: any): number
+	return WeaponIncome.PerSecond(weapon.Value, weapon.Mutation, weapon.State == BROKEN_STATE)
+end
+
+local function pickBestWeapons(data: any): { string }
+	local candidates = {}
+	for _, weapon in data.Weapons do
+		if weapon.State ~= BROKEN_STATE then
+			table.insert(candidates, weapon)
+		end
+	end
+	table.sort(candidates, function(a: any, b: any): boolean
+		return getIncome(a) > getIncome(b)
+	end)
+	local slots = data.Capacity.Loadout or DataTemplate.Limits.DefaultLoadoutSlots
+	local best = {}
+	for index = 1, math.min(slots, #candidates) do
+		table.insert(best, candidates[index].Id)
+	end
+	return best
+end
+
+local function onRequestEquipBest(player: Player)
+	local canRun, reason = canHandle(player, "")
+	if not canRun then
+		sendResult(player, false, reason)
+		return
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		sendResult(player, false, "NotLoaded")
+		return
+	end
+	local best = pickBestWeapons(data)
+	if #best == 0 then
+		sendResult(player, false, "NoWeapons")
+		return
+	end
+	local ok, setReason = DataActions.TrySetLoadout(player, best)
+	sendResult(player, ok, setReason)
+end
+
 local function getRemotesFolder(): Instance
 	local remotesFolder = ReplicatedStorage:FindFirstChild(REMOTES_FOLDER_NAME)
 	if remotesFolder == nil then
@@ -82,10 +127,12 @@ function EquipService.Init()
 	local remotesFolder = getRemotesFolder()
 	local requestEquip = createRemote(RemoteNames.RequestEquip, remotesFolder)
 	local requestUnequip = createRemote(RemoteNames.RequestUnequip, remotesFolder)
+	local requestEquipBest = createRemote(RemoteNames.RequestEquipBest, remotesFolder)
 	notifyEquipResult = createRemote(RemoteNames.NotifyEquipResult, remotesFolder)
 
 	requestEquip.OnServerEvent:Connect(onRequestEquip)
 	requestUnequip.OnServerEvent:Connect(onRequestUnequip)
+	requestEquipBest.OnServerEvent:Connect(onRequestEquipBest)
 end
 
 return EquipService

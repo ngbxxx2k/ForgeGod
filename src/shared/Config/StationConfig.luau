@@ -2,8 +2,7 @@
 
 local StationConfig = {}
 
-StationConfig.WorldFolderName = "World"
-StationConfig.FurnaceModelName = "Ore_Smelting_Furnace"
+StationConfig.FurnaceModelName = "OreCrucible"
 StationConfig.ForgeModelName = "Fantasy_Anvil"
 
 StationConfig.PromptKeyCode = Enum.KeyCode.E

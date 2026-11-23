@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local FurnaceConfig = require(ReplicatedStorage.Shared.Config.FurnaceConfig)
 local FurnaceMessages = require(ReplicatedStorage.Shared.Constants.FurnaceMessages)
+local GuiPath = require(script.Parent.Parent.Components.GuiPath)
 local RarityGradient = require(script.Parent.Parent.Components.RarityGradient)
 local UiSound = require(script.Parent.Parent.Parent.Effects.UiSound)
 local OpenAnimation = require(script.Parent.Parent.Components.OpenAnimation)
@@ -59,10 +60,7 @@ local function findPath(parent: Instance, path: { string }): Instance?
 end
 
 local function setText(parent: Instance, path: { string }, text: string)
-	local label = findPath(parent, path)
-	if label and (label:IsA("TextLabel") or label:IsA("TextButton")) then
-		label.Text = text
-	end
+	GuiPath.SetText(parent, path, text)
 end
 
 local function setImage(parent: Instance, path: { string }, image: string?)
@@ -227,7 +225,7 @@ function FurnaceScreen.SetVisible(isVisible: boolean)
 	end
 	if isVisible then
 		ScreenRegistry.CloseAllExcept(frame)
-		frame.Visible = true
+		OpenAnimation.Open(frame)
 	else
 		OpenAnimation.Close(frame)
 	end
@@ -261,7 +259,14 @@ function FurnaceScreen.Init()
 	UiSound.WatchOpen(main)
 	OpenAnimation.Watch(main)
 	HudSlide.TrackScreen(main)
-	ScreenRegistry.Register(main)
+	ScreenRegistry.Register(main, function()
+		local current = handlers
+		if current then
+			current.OnClose()
+		else
+			main.Visible = false
+		end
+	end)
 	slotTemplate, bagItemTemplate, skipCheck = slot, bagItem, check
 
 	applyTexts(main)

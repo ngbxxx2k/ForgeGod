@@ -1,10 +1,10 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local shared = ReplicatedStorage:WaitForChild("Shared")
 local StationConfig = require(shared:WaitForChild("Config"):WaitForChild("StationConfig"))
+local PlotStations = require(shared:WaitForChild("Utils"):WaitForChild("PlotStations"))
 
 local ROOT_PART_NAME = "HumanoidRootPart"
 
@@ -12,9 +12,8 @@ local StationRange = {}
 
 local isInitialized = false
 
-local function findStationPart(modelName: string): BasePart?
-	local worldFolder = Workspace:FindFirstChild(StationConfig.WorldFolderName)
-	local model = worldFolder and worldFolder:FindFirstChild(modelName)
+local function findStationPart(player: Player, modelName: string): BasePart?
+	local model = PlotStations.FindOwnedStation(player.UserId, modelName)
 	if model == nil then
 		return nil
 	end
@@ -27,9 +26,8 @@ function StationRange.IsNear(player: Player, modelName: string): boolean
 	if not rootPart or not rootPart:IsA("BasePart") then
 		return false
 	end
-	local stationPart = findStationPart(modelName)
+	local stationPart = findStationPart(player, modelName)
 	if stationPart == nil then
-		warn("[StationRange] Missing station model:", modelName)
 		return false
 	end
 	local maxDistance = StationConfig.MaxActivationDistance + StationConfig.ServerRangeTolerance

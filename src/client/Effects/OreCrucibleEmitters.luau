@@ -215,6 +215,13 @@ function OreCrucibleEmitters.ApplyState(set: EmitterSet, state: string, playBurs
 	end
 end
 
+function OreCrucibleEmitters.Emit(set: EmitterSet, key: string, count: number)
+	local emitter = set.Emitters[key]
+	if emitter and set.IsAwake then
+		emitter:Emit(count)
+	end
+end
+
 function OreCrucibleEmitters.SetAwake(set: EmitterSet, isAwake: boolean)
 	set.IsAwake = isAwake
 	applyRates(set)

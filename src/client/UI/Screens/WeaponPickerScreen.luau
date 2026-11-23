@@ -3,7 +3,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local BackpackMessages = require(ReplicatedStorage.Shared.Constants.BackpackMessages)
+local ForgeMessages = require(ReplicatedStorage.Shared.Constants.ForgeMessages)
 local ItemBrowser = require(script.Parent.Parent.Components.ItemBrowser)
 local HudSlide = require(script.Parent.Parent.Components.HudSlide)
 local ScreenRegistry = require(script.Parent.Parent.Components.ScreenRegistry)
@@ -20,7 +20,7 @@ local mainFrame: Frame? = nil
 local closeHandler: (() -> ())? = nil
 
 local function getActionText(_item: BackpackItem): string?
-	return BackpackMessages.EquipText
+	return ForgeMessages.ForgeText
 end
 
 local function onClose()

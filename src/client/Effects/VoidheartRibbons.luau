@@ -78,6 +78,7 @@ end
 
 function VoidheartRibbons.Create(rig: VoidheartRig.Rig): RibbonSet
 	local folder = Instance.new("Folder")
+	folder.Archivable = false
 	folder.Name = FOLDER_NAME
 	local set: RibbonSet = { Folder = folder, Ribbons = {} }
 	for _ = 1, VoidheartFxConfig.Ribbons.Count do

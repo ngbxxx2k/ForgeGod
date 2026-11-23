@@ -19,6 +19,7 @@ local random = Random.new()
 local function newBeam(tip: Attachment, core: Attachment, width: number): Beam
 	local colors = VoidheartFxConfig.Colors
 	local beam = Instance.new("Beam")
+	beam.Archivable = false
 	beam.Attachment0 = tip
 	beam.Attachment1 = core
 	beam.Segments = VoidheartFxConfig.ClawArcs.Segments
@@ -34,6 +35,7 @@ end
 
 local function newAttachment(set: ArcSet, parent: BasePart, worldPosition: Vector3): Attachment
 	local attachment = Instance.new("Attachment")
+	attachment.Archivable = false
 	attachment.Name = ATTACHMENT_NAME
 	attachment.Parent = parent
 	attachment.WorldPosition = worldPosition

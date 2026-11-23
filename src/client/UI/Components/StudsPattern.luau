@@ -1,8 +1,11 @@
 --!strict
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local STUDS_IMAGE = "rbxassetid://6927295847"
+local AssetIds = require(ReplicatedStorage.Shared.Constants.AssetIds)
+
+local STUDS_IMAGE = AssetIds.Textures.Studs
 local STUDS_NAME = "StudsTexture"
 local STUDS_TRANSPARENCY = 0.1
 local TILES_PER_SHORT_SIDE = 1

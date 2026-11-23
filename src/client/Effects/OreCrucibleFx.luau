@@ -16,6 +16,8 @@ type Controller = {
 	Sounds: OreCrucibleSounds.SoundSet,
 	State: string,
 	IsAwake: boolean,
+	EruptUntil: number,
+	EruptToken: number,
 	Connections: { RBXScriptConnection },
 }
 
@@ -30,6 +32,13 @@ local function readState(model: Model): string
 		return value
 	end
 	return OreCrucibleConfig.States.Idle
+end
+
+local function effectiveState(controller: Controller): string
+	if os.clock() < controller.EruptUntil then
+		return OreCrucibleConfig.States.Max
+	end
+	return readState(controller.Rig.Model)
 end
 
 local function fadeTimeFor(state: string): number
@@ -60,7 +69,7 @@ local function setAwake(controller: Controller, isAwake: boolean)
 end
 
 local function onStateChanged(controller: Controller)
-	local state = readState(controller.Rig.Model)
+	local state = effectiveState(controller)
 	if state == controller.State then
 		return
 	end
@@ -106,6 +115,8 @@ local function attach(instance: Instance, attempt: number?)
 		Sounds = OreCrucibleSounds.Create(rig, state),
 		State = state,
 		IsAwake = false,
+		EruptUntil = 0,
+		EruptToken = 0,
 		Connections = {},
 	}
 	controllers[instance] = controller
@@ -140,6 +151,42 @@ local function cullLoop()
 		for _, controller in controllers do
 			setAwake(controller, isNearCamera(controller))
 		end
+	end
+end
+
+local function replayBurst(controller: Controller)
+	OreCrucibleEmitters.ApplyState(controller.Emitters, controller.State, true)
+	OreCrucibleSounds.ApplyState(controller.Sounds, controller.State, true)
+end
+
+function OreCrucibleFx.Erupt(model: Model)
+	local controller = controllers[model]
+	if not controller then
+		return
+	end
+	local duration = OreCrucibleConfig.EruptDuration
+	controller.EruptUntil = os.clock() + duration
+	controller.EruptToken += 1
+	local token = controller.EruptToken
+	if controller.State == OreCrucibleConfig.States.Max then
+		replayBurst(controller)
+	else
+		onStateChanged(controller)
+	end
+	task.delay(duration, function()
+		if controllers[model] == controller and controller.EruptToken == token then
+			onStateChanged(controller)
+		end
+	end)
+end
+
+function OreCrucibleFx.Splash(model: Model)
+	local controller = controllers[model]
+	if not controller then
+		return
+	end
+	for key, count in OreCrucibleConfig.SplashBursts do
+		OreCrucibleEmitters.Emit(controller.Emitters, key, count)
 	end
 end
 

@@ -14,7 +14,9 @@ local StationConfig = require(shared:WaitForChild("Config"):WaitForChild("Statio
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local DataTemplate = require(script.Parent.Parent.Data.DataTemplate)
+local ForgeActivityService = require(script.Parent.ForgeActivityService)
 local FriendBoostService = require(script.Parent.FriendBoostService)
+local ForgeEventRoller = require(script.Parent.Parent.Internal.ForgeEventRoller)
 local MutationRoller = require(script.Parent.Parent.Internal.MutationRoller)
 local WeatherSchedule = require(script.Parent.Parent.Internal.WeatherSchedule)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
@@ -26,7 +28,6 @@ local ForgeOutcomeTable =
 local REMOTES_FOLDER_NAME = "Remotes"
 local RATE_LIMIT_KEY = "Forge"
 local PREVIEW_RATE_LIMIT_KEY = "ForgePreview"
-local FRENZY_OUTCOME_ID = "Frenzy"
 local PROTECTED_OUTCOME_ID = "Keep"
 local PERCENT_SCALE = 100
 local MAX_WEAPON_ID_LENGTH = 64
@@ -37,7 +38,7 @@ type Outcome = {
 	Id: string,
 	Weight: number,
 	PointDelta: number,
-	Multipliers: { number },
+	Multipliers: { { Value: number, Weight: number } },
 }
 
 type ForgeModifiers = {
@@ -50,6 +51,7 @@ type ForgeSession = {
 	WeaponId: string,
 	FrenzyEndsAt: number,
 	LockedUntil: number,
+	ValueHistory: { number },
 }
 
 export type ForgeResult = {
@@ -62,10 +64,14 @@ export type ForgeResult = {
 	ForgePoints: number,
 	Value: number,
 	State: string,
+	ShapeStage: number,
 	IsShapeChanged: boolean,
+	IsFrenzyStarted: boolean,
 	IsProtected: boolean,
 	FrenzyTimeLeft: number,
 	Chances: { [string]: number },
+	RollChances: { [string]: number }?,
+	StrikeId: number,
 	Mutation: string?,
 	IsNewMutation: boolean,
 }
@@ -82,6 +88,7 @@ local rng = Random.new()
 local notifyForgeResult: RemoteEvent? = nil
 local notifyForgePreview: RemoteEvent? = nil
 local sessions: { [Player]: ForgeSession } = {}
+local strikeCounters: { [Player]: number } = {}
 
 local function getBuffHolder(player: Player): BuffEffects.BuffHolder
 	return DataService.GetData(player) or {}
@@ -119,24 +126,56 @@ local function applySuccessModifiers(outcome: Outcome, modifiers: ForgeModifiers
 	return boosted
 end
 
-local function buildCandidates(forgePoints: number, modifiers: ForgeModifiers): { Outcome }
-	local breakWeight = ForgeOutcomeTable.BreakBaseWeight
-		+ ForgeOutcomeTable.BreakWeightPerPoint * forgePoints
-	local candidates: { Outcome } = {
-		{
-			Id = ForgeOutcomeTable.BreakOutcomeId,
-			Weight = breakWeight * modifiers.BreakMultiplier,
-			PointDelta = 0,
-			Multipliers = {},
-		},
-	}
+local function appendOutcomes(
+	candidates: { Outcome },
+	canDowngrade: boolean,
+	modifiers: ForgeModifiers
+)
 	for _, outcome in ForgeOutcomeTable.Outcomes do
-		local isBlockedDowngrade = outcome.PointDelta < 0 and forgePoints <= 0
+		local isBlockedDowngrade = outcome.PointDelta < 0 and not canDowngrade
 		if not isBlockedDowngrade then
 			table.insert(candidates, applySuccessModifiers(outcome, modifiers))
 		end
 	end
+end
+
+local function buildCandidates(weapon: any, modifiers: ForgeModifiers): { Outcome }
+	local forgePoints = weapon.ForgePoints
+	local candidates: { Outcome } = {}
+	if weapon.Level >= ForgeOutcomeTable.MinBreakLevel then
+		local breakWeight = ForgeOutcomeTable.BreakBaseWeight
+			+ ForgeOutcomeTable.BreakWeightPerPoint * forgePoints
+		table.insert(candidates, {
+			Id = ForgeOutcomeTable.BreakOutcomeId,
+			Weight = breakWeight * modifiers.BreakMultiplier,
+			PointDelta = 0,
+			Multipliers = {},
+		})
+	end
+	appendOutcomes(candidates, forgePoints > 0, modifiers)
 	return candidates
+end
+
+local function buildFrenzyCandidates(session: ForgeSession, modifiers: ForgeModifiers): { Outcome }
+	local candidates: { Outcome } = {}
+	appendOutcomes(candidates, #session.ValueHistory > 0, modifiers)
+	return candidates
+end
+
+local function getActiveFrenzy(player: Player, weaponId: string): ForgeSession?
+	local session = sessions[player]
+	if session and session.WeaponId == weaponId and os.clock() < session.FrenzyEndsAt then
+		return session
+	end
+	return nil
+end
+
+local function getCandidates(player: Player, weapon: any, modifiers: ForgeModifiers): { Outcome }
+	local session = getActiveFrenzy(player, weapon.Id)
+	if session then
+		return buildFrenzyCandidates(session, modifiers)
+	end
+	return buildCandidates(weapon, modifiers)
 end
 
 local function getTotalWeight(candidates: { Outcome }): number
@@ -147,10 +186,10 @@ local function getTotalWeight(candidates: { Outcome }): number
 	return totalWeight
 end
 
-local function buildChances(forgePoints: number, modifiers: ForgeModifiers): { [string]: number }
-	local candidates = buildCandidates(forgePoints, modifiers)
+local function buildChances(candidates: { Outcome }): { [string]: number }
 	local totalWeight = getTotalWeight(candidates)
 	local chances: { [string]: number } = {}
+	chances[ForgeOutcomeTable.BreakOutcomeId] = 0
 	for _, outcome in ForgeOutcomeTable.Outcomes do
 		chances[outcome.Id] = 0
 	end
@@ -160,8 +199,7 @@ local function buildChances(forgePoints: number, modifiers: ForgeModifiers): { [
 	return chances
 end
 
-local function rollOutcome(forgePoints: number, modifiers: ForgeModifiers): Outcome
-	local candidates = buildCandidates(forgePoints, modifiers)
+local function rollOutcome(candidates: { Outcome }): Outcome
 	local totalWeight = getTotalWeight(candidates)
 	local roll = rng:NextNumber(0, totalWeight)
 	local cumulative = 0
@@ -175,11 +213,23 @@ local function rollOutcome(forgePoints: number, modifiers: ForgeModifiers): Outc
 end
 
 local function pickMultiplier(outcome: Outcome): number
-	local count = #outcome.Multipliers
-	if count == 0 then
+	local multipliers = outcome.Multipliers
+	if #multipliers == 0 then
 		return 1
 	end
-	return outcome.Multipliers[rng:NextInteger(1, count)]
+	local totalWeight = 0
+	for _, entry in multipliers do
+		totalWeight += entry.Weight
+	end
+	local roll = rng:NextNumber(0, totalWeight)
+	local cumulative = 0
+	for _, entry in multipliers do
+		cumulative += entry.Weight
+		if roll < cumulative then
+			return entry.Value
+		end
+	end
+	return multipliers[#multipliers].Value
 end
 
 local function cloneWeapon(weapon: any): any
@@ -204,17 +254,47 @@ local function applyDowngrade(weapon: any)
 	end
 end
 
-local function applyUpgrade(weapon: any, multiplier: number): boolean
+local function applyUpgrade(weapon: any, multiplier: number)
+	local maxPoints = DataTemplate.Limits.MaxForgePoints
 	table.insert(weapon.ValueHistory, weapon.Value)
+	if #weapon.ValueHistory > maxPoints then
+		table.remove(weapon.ValueHistory, 1)
+	end
 	weapon.Value = math.floor(weapon.Value * multiplier)
 	weapon.Level += 1
-	weapon.ForgePoints += 1
-	if weapon.ForgePoints < DataTemplate.Limits.MaxForgePoints then
+	local nextPoints = weapon.ForgePoints + 1
+	if nextPoints > maxPoints then
+		weapon.ForgePoints = 0
+		weapon.ValueHistory = {}
+		return
+	end
+	weapon.ForgePoints = nextPoints
+end
+
+local function getShapeStage(weapon: any): number
+	return weapon.ShapeStage or DataTemplate.Limits.MinShapeStage
+end
+
+local function rollShapeChange(weapon: any): boolean
+	local stage = getShapeStage(weapon)
+	if stage >= DataTemplate.Limits.MaxShapeStage then
 		return false
 	end
-	weapon.ForgePoints = 0
-	weapon.ValueHistory = {}
+	local strikes = (weapon.ShapeStrikes or 0) + 1
+	if not ForgeEventRoller.Roll(strikes) then
+		weapon.ShapeStrikes = strikes
+		return false
+	end
+	weapon.ShapeStrikes = 0
+	weapon.ShapeStage = stage + 1
 	return true
+end
+
+local function rollFrenzy(weapon: any): boolean
+	local strikes = (weapon.FrenzyStrikes or 0) + 1
+	local isTriggered = ForgeEventRoller.Roll(strikes)
+	weapon.FrenzyStrikes = if isTriggered then 0 else strikes
+	return isTriggered
 end
 
 local function buildResult(
@@ -224,9 +304,11 @@ local function buildResult(
 	multiplier: number,
 	isShapeChanged: boolean,
 	frenzyTimeLeft: number,
-	modifiers: ForgeModifiers
+	nextChances: { [string]: number }
 ): ForgeResult
 	return {
+		ShapeStage = getShapeStage(after),
+		IsFrenzyStarted = false,
 		WeaponId = after.Id,
 		OutcomeId = outcomeId,
 		PointDelta = after.Level - before.Level,
@@ -239,7 +321,9 @@ local function buildResult(
 		IsShapeChanged = isShapeChanged,
 		IsProtected = false,
 		FrenzyTimeLeft = math.max(frenzyTimeLeft, 0),
-		Chances = buildChances(after.ForgePoints, modifiers),
+		Chances = nextChances,
+		RollChances = nil,
+		StrikeId = 0,
 		Mutation = after.Mutation,
 		IsNewMutation = before.Mutation == nil and after.Mutation ~= nil,
 	}
@@ -269,46 +353,61 @@ local function startFrenzy(player: Player, weaponId: string)
 		WeaponId = weaponId,
 		FrenzyEndsAt = frenzyEndsAt,
 		LockedUntil = frenzyEndsAt + ForgeConfig.FrenzyLockDuration,
+		ValueHistory = {},
 	}
 end
 
-local function applyOutcome(weapon: any, outcome: Outcome): (number, boolean)
+local function applyOutcome(weapon: any, outcome: Outcome): number
 	if outcome.Id == ForgeOutcomeTable.BreakOutcomeId then
 		applyBreak(weapon)
-		return 1, false
+		return 1
 	end
 	weapon.State = DataTemplate.WeaponStates.Forged
 	if outcome.PointDelta < 0 then
 		applyDowngrade(weapon)
-		return 1, false
+		return 1
 	end
 	if outcome.PointDelta > 0 then
 		local multiplier = pickMultiplier(outcome)
-		return multiplier, applyUpgrade(weapon, multiplier)
+		applyUpgrade(weapon, multiplier)
+		return multiplier
 	end
-	return 1, false
+	return 1
+end
+
+local function rollEvents(weapon: any, isBreak: boolean): (boolean, boolean)
+	if isBreak then
+		return false, false
+	end
+	return rollShapeChange(weapon), rollFrenzy(weapon)
 end
 
 local function protectedOnce(
 	player: Player,
 	weapon: any,
-	modifiers: ForgeModifiers
+	modifiers: ForgeModifiers,
+	rollChances: { [string]: number }
 ): (boolean, string?, ForgeResult?)
 	DataActions.TryRecordForge(player, false)
-	local result = buildResult(weapon, weapon, PROTECTED_OUTCOME_ID, 1, false, 0, modifiers)
+	local nextChances = buildChances(getCandidates(player, weapon, modifiers))
+	local result = buildResult(weapon, weapon, PROTECTED_OUTCOME_ID, 1, false, 0, nextChances)
 	result.IsProtected = true
+	result.RollChances = rollChances
 	return true, nil, result
 end
 
 local function forgeOnce(player: Player, weapon: any): (boolean, string?, ForgeResult?)
 	local modifiers = getModifiers(player)
-	local outcome = rollOutcome(weapon.ForgePoints, modifiers)
+	local candidates = buildCandidates(weapon, modifiers)
+	local rollChances = buildChances(candidates)
+	local outcome = rollOutcome(candidates)
 	local isBreak = outcome.Id == ForgeOutcomeTable.BreakOutcomeId
 	if isBreak and tryConsumeBreakProtection(player) then
-		return protectedOnce(player, weapon, modifiers)
+		return protectedOnce(player, weapon, modifiers, rollChances)
 	end
 	local updated = cloneWeapon(weapon)
-	local multiplier, isShapeChanged = applyOutcome(updated, outcome)
+	local multiplier = applyOutcome(updated, outcome)
+	local isShapeChanged, isFrenzyStarted = rollEvents(updated, isBreak)
 	tryApplyMutation(player, updated)
 	local ok, reason = DataActions.TryUpdateWeapon(player, updated)
 	if not ok then
@@ -316,7 +415,7 @@ local function forgeOnce(player: Player, weapon: any): (boolean, string?, ForgeR
 	end
 	DataActions.TryRecordForge(player, isBreak)
 	local frenzyTimeLeft = 0
-	if isShapeChanged then
+	if isFrenzyStarted then
 		startFrenzy(player, updated.Id)
 		frenzyTimeLeft = ForgeConfig.FrenzyDuration
 	end
@@ -327,9 +426,28 @@ local function forgeOnce(player: Player, weapon: any): (boolean, string?, ForgeR
 		multiplier,
 		isShapeChanged,
 		frenzyTimeLeft,
-		modifiers
+		buildChances(getCandidates(player, updated, modifiers))
 	)
+	result.IsFrenzyStarted = isFrenzyStarted
+	result.RollChances = rollChances
 	return true, nil, result
+end
+
+local function applyFrenzyOutcome(weapon: any, outcome: Outcome, history: { number }): number
+	if outcome.PointDelta < 0 then
+		local previousValue = table.remove(history)
+		if previousValue ~= nil then
+			weapon.Value = previousValue
+		end
+		return 1
+	end
+	if outcome.PointDelta > 0 then
+		local multiplier = pickMultiplier(outcome)
+		table.insert(history, weapon.Value)
+		weapon.Value = math.floor(weapon.Value * multiplier)
+		return multiplier
+	end
+	return 1
 end
 
 local function frenzyOnce(
@@ -337,48 +455,72 @@ local function frenzyOnce(
 	weapon: any,
 	session: ForgeSession
 ): (boolean, string?, ForgeResult?)
+	local modifiers = getModifiers(player)
+	local candidates = buildFrenzyCandidates(session, modifiers)
+	local rollChances = buildChances(candidates)
+	local outcome = rollOutcome(candidates)
 	local updated = cloneWeapon(weapon)
-	local multiplier = ForgeOutcomeTable.FrenzyMultiplier
-	updated.Value = math.floor(updated.Value * multiplier)
+	local history = table.clone(session.ValueHistory)
+	local multiplier = applyFrenzyOutcome(updated, outcome, history)
+	local isShapeChanged = rollShapeChange(updated)
 	local ok, reason = DataActions.TryUpdateWeapon(player, updated)
 	if not ok then
 		return false, reason, nil
 	end
+	session.ValueHistory = history
 	local frenzyTimeLeft = session.FrenzyEndsAt - os.clock()
-	local modifiers = getModifiers(player)
-	local result =
-		buildResult(weapon, updated, FRENZY_OUTCOME_ID, multiplier, false, frenzyTimeLeft, modifiers)
+	local nextChances = buildChances(getCandidates(player, updated, modifiers))
+	local result = buildResult(
+		weapon,
+		updated,
+		outcome.Id,
+		multiplier,
+		isShapeChanged,
+		frenzyTimeLeft,
+		nextChances
+	)
+	result.RollChances = rollChances
 	return true, nil, result
 end
 
-local function getActiveWeapon(player: Player): (any?, string?)
+local function getForgeWeapon(player: Player, weaponId: string): (any?, string?)
 	local data = DataService.GetData(player)
 	if data == nil then
 		return nil, "NotLoaded"
 	end
-	local weaponId = data.Equipped[#data.Equipped]
-	if weaponId == nil then
-		return nil, "NoWeaponEquipped"
+	local weapon, reason = DataActions.GetWeapon(player, weaponId)
+	if weapon == nil then
+		return nil, reason
 	end
-	return DataActions.GetWeapon(player, weaponId)
+	if table.find(data.Equipped, weaponId) ~= nil then
+		return nil, "WeaponEquipped"
+	end
+	return weapon, nil
 end
 
-function ForgeService.GetPreview(player: Player): (boolean, string?, ForgePreview?)
-	local weapon, reason = getActiveWeapon(player)
+local function isValidWeaponId(weaponId: any): boolean
+	return type(weaponId) == "string" and #weaponId <= MAX_WEAPON_ID_LENGTH
+end
+
+local function getMaxLevel(weapon: any): number
+	local rarityMax = ForgeConfig.MaxLevelByRarity[weapon.Rarity]
+	local absoluteMax = DataTemplate.Limits.MaxWeaponLevel
+	return if rarityMax then math.min(rarityMax, absoluteMax) else absoluteMax
+end
+
+function ForgeService.GetPreview(player: Player, weaponId: string): (boolean, string?, ForgePreview?)
+	local weapon, reason = getForgeWeapon(player, weaponId)
 	if weapon == nil then
 		return false, reason, nil
 	end
-	local chances = buildChances(weapon.ForgePoints, getModifiers(player))
+	local chances = buildChances(getCandidates(player, weapon, getModifiers(player)))
 	return true, nil, { WeaponId = weapon.Id, Chances = chances }
 end
 
 function ForgeService.Forge(player: Player, weaponId: string): (boolean, string?, ForgeResult?)
-	local weapon, reason = getActiveWeapon(player)
+	local weapon, reason = getForgeWeapon(player, weaponId)
 	if weapon == nil then
 		return false, reason, nil
-	end
-	if weapon.Id ~= weaponId then
-		return false, "WeaponChanged", nil
 	end
 	if weapon.IsLocked == true then
 		return false, "WeaponLocked", nil
@@ -398,7 +540,7 @@ function ForgeService.Forge(player: Player, weaponId: string): (boolean, string?
 		return false, "ForgeLocked", nil
 	end
 	sessions[player] = nil
-	if weapon.Level >= DataTemplate.Limits.MaxWeaponLevel then
+	if weapon.Level >= getMaxLevel(weapon) then
 		return false, "MaxLevelReached", nil
 	end
 	return forgeOnce(player, weapon)
@@ -428,7 +570,15 @@ local function onRequestForge(player: Player, weaponId: any)
 		return
 	end
 	local ok, reason, result = ForgeService.Forge(player, weaponId)
+	if ok and result then
+		local strikeId = (strikeCounters[player] or 0) + 1
+		strikeCounters[player] = strikeId
+		result.StrikeId = strikeId
+	end
 	sendResult(player, ok, reason, result)
+	if ok and result then
+		ForgeActivityService.BroadcastStrike(player, result)
+	end
 end
 
 local function sendPreview(player: Player, ok: boolean, reason: string?, preview: ForgePreview?)
@@ -437,7 +587,11 @@ local function sendPreview(player: Player, ok: boolean, reason: string?, preview
 	end
 end
 
-local function onRequestPreview(player: Player)
+local function onRequestPreview(player: Player, weaponId: any)
+	if not isValidWeaponId(weaponId) then
+		sendPreview(player, false, "InvalidRequest", nil)
+		return
+	end
 	if not DataService.IsLoaded(player) then
 		sendPreview(player, false, "NotLoaded", nil)
 		return
@@ -446,12 +600,13 @@ local function onRequestPreview(player: Player)
 		sendPreview(player, false, "RateLimited", nil)
 		return
 	end
-	local ok, reason, preview = ForgeService.GetPreview(player)
+	local ok, reason, preview = ForgeService.GetPreview(player, weaponId)
 	sendPreview(player, ok, reason, preview)
 end
 
 local function handlePlayerRemoving(player: Player)
 	sessions[player] = nil
+	strikeCounters[player] = nil
 end
 
 local function getRemotesFolder(): Instance

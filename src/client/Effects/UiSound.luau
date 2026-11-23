@@ -68,6 +68,10 @@ local function tryAttach(instance: Instance)
 	end
 end
 
+function UiSound.AttachButton(button: GuiButton)
+	attachButton(button)
+end
+
 function UiSound.PlayOpen()
 	play(openSound)
 end

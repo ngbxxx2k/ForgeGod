@@ -13,12 +13,15 @@ local BuffConfig = require(shared:WaitForChild("Config"):WaitForChild("BuffConfi
 local BuffEffects = require(shared:WaitForChild("Utils"):WaitForChild("BuffEffects"))
 local FurnaceConfig = require(shared:WaitForChild("Config"):WaitForChild("FurnaceConfig"))
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
+local StationConfig = require(shared:WaitForChild("Config"):WaitForChild("StationConfig"))
 local WeaponCatalog = require(shared:WaitForChild("Constants"):WaitForChild("WeaponCatalog"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local FriendBoostService = require(script.Parent.FriendBoostService)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
+local StationRange = require(script.Parent.Parent.Security.StationRange)
+local ScaleRoller = require(script.Parent.Parent.Internal.ScaleRoller)
 
 local lootTables = game:GetService("ServerStorage"):WaitForChild("LootTables")
 local SmeltRarityTable = require(lootTables:WaitForChild("SmeltRarityTable"))
@@ -29,11 +32,22 @@ local rng = Random.new()
 
 local FurnaceService = {}
 
+local ODDS_RATE_LIMIT_KEY = "SmeltOdds"
+local PERCENT_SCALE = 100
+local PERCENT_PRECISION = 100
+local MAX_REQUEST_ID = 2 ^ 31
+
+export type SmeltOdd = {
+	Rarity: string,
+	Percent: number,
+}
+
 local isInitialized = false
 local notifySmeltResult: RemoteEvent? = nil
+local notifySmeltOdds: RemoteEvent? = nil
 
 -- Thứ tự độ hiếm dùng chung cho roll, khớp với thứ tự trọng số trong LootTable.
-local RARITY_ORDER = { "Common", "Rare", "Epic", "Legendary", "Mythic" }
+local RARITY_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
 
 -- Kiểm tra bảng quặng client gửi: phải là table, mọi khoá là quặng hợp lệ,
 -- mọi giá là số nguyên dương, tổng đúng RecipeSize (F3.2).
@@ -77,9 +91,7 @@ local function findBand(totalPoints: number): any?
 	return nil
 end
 
--- Roll độ hiếm theo trọng số của khoảng điểm. Nếu có buff may mắn (F3.4),
--- nhân trọng số độ hiếm i với (1 + luckShift)^(i - 1) rồi mới roll.
-local function rollRarity(totalPoints: number, luckShift: number): string
+local function getWeights(totalPoints: number, luckShift: number): { number }
 	local band = findBand(totalPoints)
 	assert(band ~= nil, "Tổng điểm luôn nằm trong một khoảng khi công thức hợp lệ")
 
@@ -89,11 +101,27 @@ local function rollRarity(totalPoints: number, luckShift: number): string
 			weights[i] = weight * (1 + luckShift) ^ (i - 1)
 		end
 	end
+	return weights
+end
 
+local function sumWeights(weights: { number }): number
 	local totalWeight = 0
 	for _, weight in weights do
 		totalWeight += weight
 	end
+	return totalWeight
+end
+
+local function getLuckShift(player: Player, data: any): number
+	local potionShift = BuffEffects.GetBonus(data, BuffConfig.EffectIds.SmeltLuckBonus, os.time())
+	return potionShift + FriendBoostService.GetLuck(player)
+end
+
+-- Roll độ hiếm theo trọng số của khoảng điểm. Nếu có buff may mắn (F3.4),
+-- nhân trọng số độ hiếm i với (1 + luckShift)^(i - 1) rồi mới roll.
+local function rollRarity(totalPoints: number, luckShift: number): string
+	local weights = getWeights(totalPoints, luckShift)
+	local totalWeight = sumWeights(weights)
 
 	-- Weighted roll: cộng dồn trọng số rồi rơi vào ô tương ứng.
 	local roll = rng:NextNumber(0, totalWeight)
@@ -144,16 +172,11 @@ function FurnaceService.Smelt(player: Player, ores: any): (boolean, string?, any
 		return false, "NotEnoughOres", nil
 	end
 
-	local potionShift = BuffEffects.GetBonus(data, BuffConfig.EffectIds.SmeltLuckBonus, os.time())
-	local rarity = rollRarity(totalPoints, potionShift + FriendBoostService.GetLuck(player))
+	local rarity = rollRarity(totalPoints, getLuckShift(player, data))
 	local weaponType = rollWeaponType(rarity)
-	local multiplier = rng:NextNumber(
-		FurnaceConfig.MinValueMultiplier,
-		FurnaceConfig.MaxValueMultiplier
-	)
+	local scale = ScaleRoller.Roll(rng)
 
-	local baseValue = FurnaceConfig.BaseValues[rarity]
-	local blankValue = math.floor(baseValue * multiplier)
+	local blankValue = math.floor(FurnaceConfig.BaseValues[rarity] * scale)
 
 	-- Dựng WeaponData phôi theo cấu trúc DataTemplate.
 	-- Tier là bậc độ hiếm (1..5), WeaponType lưu mã loại trong WeaponCatalog.
@@ -168,7 +191,8 @@ function FurnaceService.Smelt(player: Player, ores: any): (boolean, string?, any
 		Level = 0,
 		ForgePoints = 0,
 		Mutation = nil,
-		BaseValue = baseValue,
+		Scale = scale,
+		BaseValue = blankValue,
 		Value = blankValue,
 		Recipe = table.clone(ores),
 		CreatedAt = os.time(),
@@ -195,10 +219,57 @@ function FurnaceService.Smelt(player: Player, ores: any): (boolean, string?, any
 		Id = weapon.Id,
 		Rarity = rarity,
 		WeaponType = weaponType.DisplayName,
+		WeaponTypeId = weaponType.Id,
+		Scale = scale,
 		Value = weapon.Value,
 	}
 
 	return true, nil, summary
+end
+
+function FurnaceService.GetOdds(player: Player, ores: any): (boolean, string?, { SmeltOdd }?)
+	local totalPoints, reason = validateRecipe(ores)
+	if totalPoints == nil then
+		return false, reason, nil
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded", nil
+	end
+	if not hasEnoughOres(data, ores) then
+		return false, "NotEnoughOres", nil
+	end
+	local weights = getWeights(totalPoints, getLuckShift(player, data))
+	local totalWeight = sumWeights(weights)
+	local odds: { SmeltOdd } = {}
+	for i, weight in weights do
+		local percent = if totalWeight > 0 then weight / totalWeight * PERCENT_SCALE else 0
+		local rounded = math.floor(percent * PERCENT_PRECISION + 0.5) / PERCENT_PRECISION
+		table.insert(odds, { Rarity = RARITY_ORDER[i], Percent = rounded })
+	end
+	return true, nil, odds
+end
+
+local function isValidRequestId(requestId: any): boolean
+	return type(requestId) == "number" and requestId == requestId and requestId % 1 == 0
+		and requestId >= 0 and requestId < MAX_REQUEST_ID
+end
+
+local function onRequestSmeltOdds(player: Player, requestId: any, ores: any)
+	local remote = notifySmeltOdds
+	if remote == nil or not isValidRequestId(requestId) then
+		return
+	end
+	if not DataService.IsLoaded(player) then
+		remote:FireClient(player, requestId, false, "NotLoaded", nil)
+		return
+	end
+	if not RateLimiter.Check(player, ODDS_RATE_LIMIT_KEY) then
+		remote:FireClient(player, requestId, false, "RateLimited", nil)
+		return
+	end
+	local ok, reason, odds = FurnaceService.GetOdds(player, ores)
+	remote:FireClient(player, requestId, ok, reason, odds)
 end
 
 -- Xử lý Remote nấu phôi: rate limit rồi gọi Smelt, trả kết quả.
@@ -213,6 +284,13 @@ local function onRequestSmelt(player: Player, ores: any)
 	if not RateLimiter.Check(player, "Smelt") then
 		if notifySmeltResult ~= nil then
 			notifySmeltResult:FireClient(player, false, "RateLimited", nil)
+		end
+		return
+	end
+
+	if not StationRange.IsNear(player, StationConfig.FurnaceModelName) then
+		if notifySmeltResult ~= nil then
+			notifySmeltResult:FireClient(player, false, "TooFar", nil)
 		end
 		return
 	end
@@ -245,6 +323,17 @@ function FurnaceService.Init()
 	notifySmeltResult.Parent = remotesFolder
 
 	requestSmelt.OnServerEvent:Connect(onRequestSmelt)
+
+	local requestSmeltOdds = Instance.new("RemoteEvent")
+	requestSmeltOdds.Name = RemoteNames.RequestSmeltOdds
+	requestSmeltOdds.Parent = remotesFolder
+
+	local oddsRemote = Instance.new("RemoteEvent")
+	oddsRemote.Name = RemoteNames.NotifySmeltOdds
+	oddsRemote.Parent = remotesFolder
+	notifySmeltOdds = oddsRemote
+
+	requestSmeltOdds.OnServerEvent:Connect(onRequestSmeltOdds)
 end
 
 return FurnaceService

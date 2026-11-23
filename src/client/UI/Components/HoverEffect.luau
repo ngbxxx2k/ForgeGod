@@ -9,6 +9,8 @@ local SCALE_PARENT_ATTRIBUTE = "HoverScaleParent"
 local HOVER_SCALE_ATTRIBUTE = "HoverScale"
 local PRESS_SCALE_ATTRIBUTE = "PressScale"
 local ICON_NAME = "Icon"
+local ICON_PATH_ATTRIBUTE = "HoverIconPath"
+local ICON_PATH_SEPARATOR = "/"
 local BUTTON_HOVER_SCALE = 1.1
 local ICON_HOVER_SCALE = 1.2
 local ICON_HOVER_ROTATION = -12
@@ -111,6 +113,18 @@ local function getScaleTarget(button: GuiButton): GuiObject
 	return button
 end
 
+local function findIcon(button: GuiButton): Instance?
+	local iconPath = button:GetAttribute(ICON_PATH_ATTRIBUTE)
+	if typeof(iconPath) ~= "string" then
+		return button:FindFirstChild(ICON_NAME)
+	end
+	local current: Instance? = button
+	for _, name in string.split(iconPath, ICON_PATH_SEPARATOR) do
+		current = if current then current:FindFirstChild(name) else nil
+	end
+	return current
+end
+
 local function tryAttach(instance: Instance)
 	if not instance:IsA("GuiButton") or instance:GetAttribute(HOVER_ATTRIBUTE) ~= true then
 		return
@@ -123,7 +137,7 @@ function HoverEffect.Attach(button: GuiButton)
 		return
 	end
 	attachedButtons[button] = true
-	local iconInstance = button:FindFirstChild(ICON_NAME)
+	local iconInstance = findIcon(button)
 	local icon: GuiObject? = if iconInstance and iconInstance:IsA("GuiObject") then iconInstance else nil
 	local state: ButtonState = {
 		ButtonScale = getOrCreateScale(getScaleTarget(button)),

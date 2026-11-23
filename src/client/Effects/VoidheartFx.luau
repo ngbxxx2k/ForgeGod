@@ -3,6 +3,7 @@
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 local VoidheartFxConfig = require(ReplicatedStorage.Shared.Config.VoidheartFxConfig)
 local VoidheartArcs = require(script.Parent.VoidheartArcs)
@@ -43,7 +44,7 @@ local function detach(model: Model)
 end
 
 local function attach(instance: Instance)
-	if not instance:IsA("Model") or controllers[instance] then
+	if not instance:IsA("Model") or controllers[instance] or not instance:IsDescendantOf(Workspace) then
 		return
 	end
 	local rig = VoidheartRig.Build(instance)

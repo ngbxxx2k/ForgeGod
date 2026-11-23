@@ -189,6 +189,33 @@ function OreCrucibleRig.Build(model: Model, shouldWarn: boolean): Rig?
 	return rig
 end
 
+function OreCrucibleRig.FindLavaPosition(model: Model): Vector3
+	local bone = findBone(model, OreCrucibleConfig.BoneNames.Lava)
+	if bone then
+		return bone.TransformedWorldCFrame.Position
+	end
+	return model:GetBoundingBox().Position
+end
+
+function OreCrucibleRig.FindGroundY(model: Model): number
+	local bone = findBone(model, OreCrucibleConfig.BoneNames.Base)
+	if bone then
+		return bone.WorldPosition.Y
+	end
+	return model:GetPivot().Position.Y
+end
+
+function OreCrucibleRig.FindFrontDirection(model: Model): Vector3
+	local center = model:GetPivot().Position
+	local bone = findBone(model, OreCrucibleConfig.BoneNames.Grate)
+	local offset = if bone then bone.WorldPosition - center else model:GetPivot().LookVector
+	local flat = Vector3.new(offset.X, 0, offset.Z)
+	if flat.Magnitude == 0 then
+		return Vector3.zAxis
+	end
+	return flat.Unit
+end
+
 function OreCrucibleRig.UpdateLava(rig: Rig)
 	local position = rig.Bones.Lava.TransformedWorldCFrame.Position
 	rig.LavaVolume.CFrame = CFrame.new(position + Vector3.yAxis * OreCrucibleConfig.LavaVolume.Lift)

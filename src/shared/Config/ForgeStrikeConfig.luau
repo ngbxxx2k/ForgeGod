@@ -1,5 +1,10 @@
 --!strict
 
+export type WeaponModelStage = {
+	MinShapeStage: number,
+	ModelName: string,
+}
+
 local ForgeStrikeConfig = {}
 
 ForgeStrikeConfig.AnimationName = "ForgeStrike"
@@ -7,9 +12,6 @@ ForgeStrikeConfig.HammerModelName = "Fantasy_Hammer"
 ForgeStrikeConfig.HitTime = 16 / 30
 ForgeStrikeConfig.AnimationLength = 36 / 30
 ForgeStrikeConfig.FadeTime = 0.15
--- PLACEHOLDER: tốc độ vung búa tối đa khi click nhanh và hệ số làm mượt nhịp click
-ForgeStrikeConfig.MaxStrikeSpeed = 3
-ForgeStrikeConfig.StrikeSpeedSmoothing = 0.5
 
 ForgeStrikeConfig.SoundNames = {
 	Clang = "ForgeHammerClang",
@@ -42,6 +44,30 @@ ForgeStrikeConfig.StandOffset = CFrame.new(-0.302, 1.9, 2.9)
 ForgeStrikeConfig.WeaponRotation = CFrame.fromMatrix(Vector3.zero, Vector3.new(0, 0, 1), Vector3.new(-1, 0, 0))
 
 ForgeStrikeConfig.RuntimeFolderName = "ForgeStrikeRuntime"
+ForgeStrikeConfig.SpectatorFolderName = "ForgeSpectatorRuntime"
+
+ForgeStrikeConfig.SurfaceProbeHeight = 5
+ForgeStrikeConfig.SettleProbeStep = 0.1
+ForgeStrikeConfig.SettleProbeDepth = 1
+-- Khe hở nhỏ nhất giữa vũ khí và mặt đe (vũ khí lơ lửng, không chạm/xuyên đe)
+ForgeStrikeConfig.AnvilGap = 0.01
+-- Vũ khí dày hơn khe dưới búa sẽ bị ép dẹt theo chiều đứng; số lần lặp và sai số cho phép
+ForgeStrikeConfig.FitIterations = 6
+ForgeStrikeConfig.FitTolerance = 0.002
+-- Khe hở giữa mặt búa và bề mặt vũ khí lúc chạm
+ForgeStrikeConfig.StrikeClearance = 0.02
+ForgeStrikeConfig.WeaponLength = 4.8
+ForgeStrikeConfig.WeaponScalePasses = 4
+ForgeStrikeConfig.WeaponScaleTolerance = 0.01
+
+-- Model vũ khí đặt trên đe: ReplicatedStorage.Assets.Models/<WeaponType>, không có thì dùng model test
+ForgeStrikeConfig.WeaponModelsFolderName = "Models"
+-- PLACEHOLDER: mốc đổi model khi rèn (test): dạng >= MinShapeStage dùng ModelName trong World
+ForgeStrikeConfig.DefaultShapeStage = 1
+ForgeStrikeConfig.TestWeaponModelStages = {
+	{ MinShapeStage = 1, ModelName = "Sword_level_1" },
+	{ MinShapeStage = 2, ModelName = "Voidheart" },
+} :: { WeaponModelStage }
 
 ForgeStrikeConfig.Textures = {
 	Spark = "rbxasset://textures/particles/sparkles_main.dds",
@@ -114,6 +140,42 @@ ForgeStrikeConfig.Dust = {
 	SpreadAngle = 75,
 	Gravity = 30,
 	Size = 0.04,
+}
+
+-- Vũ khí lún xuống rồi nảy lại, rung lắc tắt dần mỗi lần búa chạm
+ForgeStrikeConfig.Impact = {
+	Duration = 0.3,
+	Dip = 0.06,
+	Decay = 14,
+	BounceFrequency = 38,
+	WobbleAngle = 2.5,
+	WobbleFrequency = 55,
+	WobbleRollRatio = 0.5,
+}
+
+-- Chữ kết quả vòng quay hiện tại chỗ búa chạm khi kim dừng: nảy lên, lắc trái phải, rồi mờ dần
+ForgeStrikeConfig.OutcomePopup = {
+	Font = Font.new("rbxasset://fonts/families/FredokaOne.json", Enum.FontWeight.Bold),
+	-- Kích thước chữ (pixel) và độ lệch so với điểm va chạm trên mặt vũ khí (stud)
+	WidthPixels = 260,
+	HeightPixels = 64,
+	StudsOffset = Vector3.zero,
+	StrokeColor = Color3.new(0, 0, 0),
+	StrokeThickness = 3,
+	-- Nảy lên: phóng từ StartScale tới PeakScale rồi về 1
+	StartScale = 0.3,
+	PeakScale = 1.25,
+	PopTime = 0.12,
+	SettleTime = 0.12,
+	-- Lắc trái phải: góc nghiêng (độ), độ lệch ngang (pixel), tần số (lần/giây), tốc độ tắt dần
+	ShakeAngle = 12,
+	ShakeOffset = 10,
+	ShakeFrequency = 9,
+	ShakeDecay = 3.5,
+	-- Giữ nguyên rồi bay lên và mờ dần (pixel, giây)
+	HoldTime = 0.55,
+	FadeTime = 0.35,
+	FadeRise = 24,
 }
 
 return ForgeStrikeConfig

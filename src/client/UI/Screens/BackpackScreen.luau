@@ -43,7 +43,7 @@ local openHandler: (() -> ())? = nil
 local function getActionText(item: BackpackItem): string?
 	if item.Category == "Buff" then
 		return BackpackMessages.UseText
-	elseif item.Category == "Weapon" and item.IsEquipped then
+	elseif item.Category == "Weapon" and item.IsHeld then
 		return BackpackMessages.UnequipText
 	elseif item.Category == "Weapon" and not item.IsBroken then
 		return BackpackMessages.EquipText
@@ -59,7 +59,10 @@ local function canSell(item: BackpackItem): boolean
 end
 
 local function canSellAll(item: BackpackItem): boolean
-	return item.Category ~= "Weapon" and item.Amount > 0
+	if item.Category == "Weapon" then
+		return not item.IsLocked
+	end
+	return item.Amount > 0
 end
 
 local function getSellText(item: BackpackItem): string

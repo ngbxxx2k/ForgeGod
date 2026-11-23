@@ -4,51 +4,21 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local HudMessages = require(ReplicatedStorage.Shared.Constants.HudMessages)
+local NumberFormat = require(ReplicatedStorage.Shared.Utils.NumberFormat)
 local PlayerStateController = require(script.Parent.Parent.Parent.Controllers.PlayerStateController)
+local StatAnimation = require(script.Parent.Parent.Components.StatAnimation)
 
 local HUD_GUI_NAME = "HudGui"
 local COINS_LABEL_NAME = "CoinsLabel"
-local ABBREVIATE_FROM = 1_000_000
-local ABBREVIATION_STEP = 1000
-local ABBREVIATION_DECIMALS = 2
-local THOUSANDS_PATTERN = "^(-?%d+)(%d%d%d)"
 
 local CoinsDisplay = {}
 
 local isInitialized = false
 local coinsLabel: TextLabel? = nil
+local hasRendered = false
 
-local function addThousandsSeparators(value: number): string
-	local text = tostring(math.floor(value))
-	local replacement = "%1" .. HudMessages.ThousandsSeparator .. "%2"
-	local count = 1
-	while count > 0 do
-		text, count = string.gsub(text, THOUSANDS_PATTERN, replacement)
-	end
-	return text
-end
-
-local function trimDecimals(value: number): string
-	local factor = 10 ^ ABBREVIATION_DECIMALS
-	local truncated = math.floor(value * factor) / factor
-	local text = string.format("%." .. ABBREVIATION_DECIMALS .. "f", truncated)
-	text = string.gsub(text, "0+$", "")
-	text = string.gsub(text, "%.$", "")
-	return text
-end
-
-local function formatCoins(coins: number): string
-	if coins < ABBREVIATE_FROM then
-		return addThousandsSeparators(coins)
-	end
-	local suffixes = HudMessages.AbbreviationSuffixes
-	local value = coins / ABBREVIATE_FROM
-	local index = 1
-	while value >= ABBREVIATION_STEP and index < #suffixes do
-		value /= ABBREVIATION_STEP
-		index += 1
-	end
-	return string.format(HudMessages.AbbreviatedFormat, trimDecimals(value), suffixes[index])
+local function formatCoinsText(coins: number): string
+	return string.format(HudMessages.CoinsFormat, NumberFormat.Abbreviate(coins))
 end
 
 local function render()
@@ -57,7 +27,12 @@ local function render()
 	if not label or not state then
 		return
 	end
-	label.Text = string.format(HudMessages.CoinsFormat, formatCoins(state.Coins))
+	if hasRendered then
+		StatAnimation.CountTo(label, state.Coins, formatCoinsText)
+	else
+		StatAnimation.SetNumber(label, state.Coins, formatCoinsText)
+		hasRendered = true
+	end
 end
 
 local function bindHud(child: Instance)
@@ -70,6 +45,7 @@ local function bindHud(child: Instance)
 		return
 	end
 	coinsLabel = label
+	hasRendered = false
 	render()
 end
 

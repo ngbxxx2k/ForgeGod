@@ -9,10 +9,6 @@ local isInitialized = false
 
 local function selectTab(tabId: string)
 	IndexScreen.RenderCollections(IndexMockData.GetCollections(tabId))
-	local reward = IndexMockData.GetReward(tabId)
-	if reward then
-		IndexScreen.SetReward(reward)
-	end
 end
 
 function IndexController.Init()

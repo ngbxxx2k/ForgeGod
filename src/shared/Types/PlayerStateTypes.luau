@@ -7,7 +7,9 @@ export type WeaponSummary = {
 	State: string,
 	Level: number,
 	ForgePoints: number,
+	ShapeStage: number?,
 	Mutation: string?,
+	Scale: number?,
 	Value: number,
 	IsLocked: boolean?,
 }
@@ -18,6 +20,7 @@ export type PlayerState = {
 	Weapons: { WeaponSummary },
 	Equipped: { string },
 	Capacity: number,
+	LoadoutCapacity: number?,
 	ActiveBuffs: { [string]: number }?,
 	ArmedBuffs: { [string]: number }?,
 }

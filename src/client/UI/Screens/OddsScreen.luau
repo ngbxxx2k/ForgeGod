@@ -3,6 +3,7 @@
 local Players = game:GetService("Players")
 
 local ScrollCanvas = require(script.Parent.Parent.Components.ScrollCanvas)
+local RarityGradient = require(script.Parent.Parent.Components.RarityGradient)
 local OpenAnimation = require(script.Parent.Parent.Components.OpenAnimation)
 local HudSlide = require(script.Parent.Parent.Components.HudSlide)
 local ScreenRegistry = require(script.Parent.Parent.Components.ScreenRegistry)
@@ -17,6 +18,7 @@ local PERCENT_MULTIPLIER = 100
 export type OddsEntry = {
 	DisplayName: string,
 	Chance: number,
+	Rarity: string?,
 	Image: string?,
 	Color: Color3?,
 }
@@ -28,6 +30,7 @@ local oddsList: ScrollingFrame? = nil
 local cellTemplate: Frame? = nil
 local titleLabel: TextLabel? = nil
 local iconLabel: ImageLabel? = nil
+local headerGradient: UIGradient? = nil
 local isReplacingShop = false
 
 local function setText(parent: Instance, childName: string, text: string)
@@ -67,6 +70,7 @@ local function createCell(template: Frame, entry: OddsEntry, order: number): Fra
 	setText(cell, "ItemName", entry.DisplayName)
 	setText(cell, "Chance", string.format(CHANCE_FORMAT, entry.Chance * PERCENT_MULTIPLIER))
 	setImage(cell, entry.Image, entry.Color)
+	RarityGradient.Apply(cell, entry.Rarity)
 	return cell
 end
 
@@ -135,6 +139,12 @@ function OddsScreen.SetIcon(image: string)
 	end
 end
 
+function OddsScreen.SetHeaderGradient(color: ColorSequence)
+	if headerGradient then
+		headerGradient.Color = color
+	end
+end
+
 function OddsScreen.Init()
 	if isInitialized then
 		return
@@ -165,6 +175,7 @@ function OddsScreen.Init()
 	if icon and icon:IsA("ImageLabel") then
 		iconLabel = icon
 	end
+	headerGradient = header:FindFirstChildOfClass("UIGradient")
 
 	bindPanelButtons(shopGui)
 end

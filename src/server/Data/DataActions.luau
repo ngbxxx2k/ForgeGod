@@ -6,6 +6,14 @@
 	Mọi hàm có thể thất bại trả về (ok: boolean, reason: string?).
 ]]
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
+local configFolder = sharedFolder:WaitForChild("Config")
+local WeaponWeightConfig = require(configFolder:WaitForChild("WeaponWeightConfig"))
+local PlotLevel = require(sharedFolder:WaitForChild("Utils"):WaitForChild("PlotLevel"))
+local WeaponIncome = require(sharedFolder:WaitForChild("Utils"):WaitForChild("WeaponIncome"))
+
 local DataTemplate = require(script.Parent.DataTemplate)
 local DataService = require(script.Parent.DataService)
 local LeaderboardService = require(script.Parent.LeaderboardService)
@@ -44,12 +52,9 @@ local function isWeaponEquipped(data: any, weaponId: string): boolean
 	return table.find(data.Equipped, weaponId) ~= nil
 end
 
--- Số chỗ kho đã dùng: tổng số lượng Items + số vũ khí trong Weapons.
+-- Số chỗ kho đã dùng: chỉ đếm vũ khí trong Weapons (quặng và buff không tính).
 local function getUsedSlots(data: any): number
 	local used = 0
-	for _, amount in data.Items :: any do
-		used += amount
-	end
 	for _ in data.Weapons :: any do
 		used += 1
 	end
@@ -57,6 +62,24 @@ local function getUsedSlots(data: any): number
 end
 
 -- Vũ khí có cấu trúc tối thiểu hợp lệ để lưu vào kho?
+local function isValidScale(scale: any): boolean
+	if scale == nil then
+		return true
+	end
+	return type(scale) == "number" and scale == scale
+		and scale >= WeaponWeightConfig.MinScale and scale <= WeaponWeightConfig.MaxScale
+end
+
+local function isOptionalCount(value: any, minValue: number, maxValue: number): boolean
+	return value == nil or isValidCount(value, minValue, maxValue)
+end
+
+local function isValidForgeProgress(weapon: any): boolean
+	return isOptionalCount(weapon.ShapeStage, Limits.MinShapeStage, Limits.MaxShapeStage)
+		and isOptionalCount(weapon.ShapeStrikes, 0, math.huge)
+		and isOptionalCount(weapon.FrenzyStrikes, 0, math.huge)
+end
+
 local function isValidWeapon(weapon: any): boolean
 	if type(weapon) ~= "table" then
 		return false
@@ -71,7 +94,9 @@ local function isValidWeapon(weapon: any): boolean
 		and DataTemplate.WeaponStates[weapon.State] ~= nil
 		and isValidCount(weapon.Level, 0, Limits.MaxWeaponLevel)
 		and isValidCount(weapon.ForgePoints, 0, Limits.MaxForgePoints)
+		and isValidForgeProgress(weapon)
 		and (weapon.Mutation == nil or isValidString(weapon.Mutation))
+		and isValidScale(weapon.Scale)
 		and type(weapon.BaseValue) == "number"
 		and weapon.BaseValue >= 0
 		and type(weapon.Value) == "number"
@@ -87,6 +112,11 @@ local function updateHighestStats(data: any, weapon: any)
 	end
 	if weapon.Level > data.Stats.HighestWeaponLevel then
 		data.Stats.HighestWeaponLevel = weapon.Level
+	end
+	local isBroken = weapon.State == DataTemplate.WeaponStates.Broken
+	local income = WeaponIncome.PerSecond(weapon.Value, weapon.Mutation, isBroken)
+	if income > data.Stats.HighestWeaponIncome then
+		data.Stats.HighestWeaponIncome = income
 	end
 end
 
@@ -177,9 +207,6 @@ function DataActions.TryAddItem(player: Player, itemId: string, amount: number):
 	local data = DataService.GetData(player)
 	if data == nil then
 		return false, "NotLoaded"
-	end
-	if getUsedSlots(data) + amount > data.Capacity.Items then
-		return false, "InventoryFull"
 	end
 	local current = data.Items[itemId] or 0
 	data.Items[itemId] = current + amount
@@ -325,6 +352,52 @@ function DataActions.TrySellWeapon(
 	return true
 end
 
+local function canSellWeapon(data: any, weaponId: any, price: any): (boolean, string?)
+	if not isValidCount(price, 0, math.huge) then
+		return false, "InvalidAmount"
+	end
+	if not isValidString(weaponId) or data.Weapons[weaponId] == nil then
+		return false, "WeaponNotFound"
+	end
+	if isWeaponEquipped(data, weaponId) then
+		return false, "WeaponEquipped"
+	end
+	if data.Weapons[weaponId].IsLocked == true then
+		return false, "WeaponLocked"
+	end
+	return true
+end
+
+-- Bán nhiều vũ khí cùng lúc: kiểm tra tất cả trước, rồi mới xoá và cộng tiền.
+function DataActions.TrySellWeapons(
+	player: Player,
+	prices: { [string]: number }
+): (boolean, string?, number?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded", nil
+	end
+	if next(prices) == nil then
+		return false, "NothingToSell", nil
+	end
+	local total = 0
+	for weaponId, price in prices do
+		local ok, reason = canSellWeapon(data, weaponId, price)
+		if not ok then
+			return false, reason, nil
+		end
+		total += price
+	end
+	for weaponId in prices do
+		data.Weapons[weaponId] = nil
+	end
+	data.Coins = math.floor(data.Coins + total)
+	data.Stats.TotalCoinsEarned += total
+	LeaderboardService.SetCoins(player, data.Coins)
+	notifyChanged(player)
+	return true, nil, total
+end
+
 function DataActions.TrySellItem(
 	player: Player,
 	itemId: string,
@@ -375,7 +448,44 @@ function DataActions.TrySetWeaponLocked(
 	return true
 end
 
--- Treo vũ khí lên lưng (tối đa MaxEquipped = 3, không trùng).
+local function getLoadoutSlots(data: any): number
+	return data.Capacity.Loadout or Limits.DefaultLoadoutSlots
+end
+
+local function isEquippable(data: any, weaponId: any): boolean
+	local weapon = if isValidString(weaponId) then data.Weapons[weaponId] else nil
+	return weapon ~= nil and weapon.State ~= DataTemplate.WeaponStates.Broken
+end
+
+local function isValidLoadout(data: any, weaponIds: any): boolean
+	if type(weaponIds) ~= "table" or #weaponIds > getLoadoutSlots(data) then
+		return false
+	end
+	local seen: { [string]: boolean } = {}
+	for _, weaponId in weaponIds do
+		if not isEquippable(data, weaponId) or seen[weaponId] then
+			return false
+		end
+		seen[weaponId] = true
+	end
+	return true
+end
+
+-- Thay toàn bộ Loadout bằng danh sách mới (dùng cho nút Equip Best).
+function DataActions.TrySetLoadout(player: Player, weaponIds: { string }): (boolean, string?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if not isValidLoadout(data, weaponIds) then
+		return false, "InvalidRequest"
+	end
+	data.Equipped = table.clone(weaponIds)
+	notifyChanged(player)
+	return true
+end
+
+-- Đưa vũ khí vào Loadout (tối đa Capacity.Loadout, không trùng).
 function DataActions.TryEquipWeapon(player: Player, weaponId: string): (boolean, string?)
 	local data = DataService.GetData(player)
 	if data == nil then
@@ -396,7 +506,7 @@ function DataActions.TryEquipWeapon(player: Player, weaponId: string): (boolean,
 		notifyChanged(player)
 		return true
 	end
-	if #data.Equipped >= Limits.MaxEquipped then
+	if #data.Equipped >= getLoadoutSlots(data) then
 		return false, "EquipLimitReached"
 	end
 	table.insert(data.Equipped, weaponId)
@@ -417,6 +527,87 @@ function DataActions.TryUnequipWeapon(player: Player, weaponId: string): (boolea
 	table.remove(data.Equipped, index)
 	notifyChanged(player)
 	return true
+end
+
+local function recordPurchase(data: any, purchaseId: string)
+	table.insert(data.ProcessedPurchases, purchaseId)
+	while #data.ProcessedPurchases > Limits.MaxProcessedPurchases do
+		table.remove(data.ProcessedPurchases, 1)
+	end
+end
+
+function DataActions.HasProcessedPurchase(player: Player, purchaseId: string): boolean
+	local data = DataService.GetData(player)
+	return data ~= nil and table.find(data.ProcessedPurchases, purchaseId) ~= nil
+end
+
+-- Mua thêm 1 ô Loadout (1 trụ) bằng coins. Giá lấy từ PlotUpgradeConfig theo level hiện tại.
+function DataActions.TryBuyLoadoutSlot(player: Player): (boolean, string?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	local slots = getLoadoutSlots(data)
+	local step = PlotLevel.GetNextStep(slots)
+	if step == nil then
+		return false, "MaxLevel"
+	end
+	if data.Coins < step.CoinPrice then
+		return false, "NotEnoughCoins"
+	end
+	data.Coins = math.floor(data.Coins - step.CoinPrice)
+	data.Capacity.Loadout = slots + 1
+	LeaderboardService.SetCoins(player, data.Coins)
+	notifyChanged(player)
+	return true
+end
+
+-- Cộng 1 ô Loadout cho giao dịch Robux, ghi PurchaseId để không cộng trùng.
+function DataActions.TryGrantLoadoutSlot(player: Player, purchaseId: string): (boolean, string?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	if table.find(data.ProcessedPurchases, purchaseId) then
+		return true
+	end
+	local slots = getLoadoutSlots(data)
+	if PlotLevel.IsMax(slots) then
+		return false, "MaxLevel"
+	end
+	data.Capacity.Loadout = slots + 1
+	recordPurchase(data, purchaseId)
+	notifyChanged(player)
+	return true
+end
+
+-- Cộng Robux đã chi cho bảng xếp hạng Donated. Gọi sau khi giao dịch đã được cấp quà.
+function DataActions.TryAddRobuxSpent(player: Player, amount: number): (boolean, string?)
+	if not isValidCount(amount, 1, math.huge) then
+		return false, "InvalidAmount"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	data.Stats.TotalRobuxSpent += amount
+	return true
+end
+
+-- Tính lại chỉ số cao nhất từ kho hiện tại (bổ sung cho dữ liệu cũ chưa có HighestWeaponIncome).
+function DataActions.RefreshHighestStats(player: Player)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return
+	end
+	for _, weapon in data.Weapons do
+		if isValidWeapon(weapon) then
+			updateHighestStats(data, weapon)
+		end
+	end
 end
 
 -- Consume một vật phẩm dùng-một-lần (nền cho buff F8).

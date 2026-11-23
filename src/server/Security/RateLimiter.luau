@@ -13,6 +13,9 @@ local WINDOW_SECONDS = 5
 -- PLACEHOLDER: đập búa cần nhanh cho chế độ đập liên tục
 local KEY_LIMITS: { [string]: { MaxRequests: number, WindowSeconds: number } } = {
 	Forge = { MaxRequests = 12, WindowSeconds = 1 },
+	ForgeStance = { MaxRequests = 6, WindowSeconds = 2 },
+	ShopBuy = { MaxRequests = 30, WindowSeconds = 5 },
+	SmeltOdds = { MaxRequests = 20, WindowSeconds = 5 },
 }
 
 local RateLimiter = {}

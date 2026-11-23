@@ -1,6 +1,8 @@
 --!strict
 
-export type StateMap = { Idle: number, Active: number, Max: number }
+local AssetIds = require(script.Parent.Parent.Constants.AssetIds)
+
+export type StateMap ={ Idle: number, Active: number, Max: number }
 export type ColorMap = { Idle: Color3, Active: Color3, Max: Color3 }
 
 export type EmitterSpec = {
@@ -56,6 +58,13 @@ OreCrucibleConfig.Cycle = {
 
 OreCrucibleConfig.PollInterval = 0.25
 
+-- PLACEHOLDER: thời gian nồi phun trào khi người chơi bấm nấu, và số hạt bắn lên khi quặng rơi vào
+OreCrucibleConfig.EruptDuration = 4
+OreCrucibleConfig.SplashBursts = {
+	BurstDroplets = 10,
+	BurstSparks = 8,
+} :: { [string]: number }
+
 OreCrucibleConfig.PartNames = {
 	Body = "Crucible",
 	Lava = "Lava_Glow",
@@ -71,11 +80,7 @@ OreCrucibleConfig.BoneNames = {
 	Base = "VFX_Base",
 }
 
-OreCrucibleConfig.AnimationIds = {
-	Idle = "rbxassetid://117359623468463",
-	Active = "rbxassetid://83981730592817",
-	Max = "rbxassetid://82994463595831",
-}
+OreCrucibleConfig.AnimationIds = AssetIds.OreCrucible.Animations
 
 OreCrucibleConfig.StudioKeyframesFolder = "OreCrucibleKeyframes"
 
@@ -85,26 +90,11 @@ OreCrucibleConfig.AnimationFadeTimes = {
 	Max = 0.6,
 } :: StateMap
 
-OreCrucibleConfig.IconId = "rbxassetid://128457679985428"
+OreCrucibleConfig.IconId = AssetIds.Icons.OreCrucible
 
-OreCrucibleConfig.SurfaceMaps = {
-	ColorMap = "rbxassetid://105707820141450",
-	NormalMap = "rbxassetid://111947881787911",
-	RoughnessMap = "rbxassetid://109315329716509",
-	MetalnessMap = "rbxassetid://87111297477456",
-}
+OreCrucibleConfig.SurfaceMaps = AssetIds.OreCrucible.SurfaceMaps
 
-OreCrucibleConfig.Textures = {
-	Ember = "rbxassetid://105087483312654",
-	Spark = "rbxassetid://135622153420206",
-	Droplet = "rbxassetid://137027728844221",
-	Bubble = "rbxassetid://85075524619434",
-	Smoke = "rbxassetid://92861015773380",
-	Fire = "rbxassetid://113735401677355",
-	Trail = "rbxassetid://127170178415103",
-	LavaVeins = "rbxassetid://117046629968845",
-	FloorCracks = "rbxassetid://130112349730731",
-}
+OreCrucibleConfig.Textures = AssetIds.OreCrucible.Particles
 
 OreCrucibleConfig.LavaVolume = {
 	Size = Vector3.new(3.4, 0.1, 3.4),
@@ -194,28 +184,6 @@ OreCrucibleConfig.Emitters = {
 			}),
 			Lifetime = NumberRange.new(0.35, 0.6),
 			Speed = NumberRange.new(0.01, 0.02),
-			Orientation = Enum.ParticleOrientation.VelocityPerpendicular,
-		},
-	},
-	{
-		Key = "LavaVeins",
-		Anchor = "LavaVolume",
-		Rates = { Idle = 1.2, Active = 2, Max = 3 },
-		Properties = {
-			Texture = textures.LavaVeins,
-			Color = ColorSequence.new(Color3.fromHex("FFE680")),
-			LightEmission = 0.8,
-			Size = NumberSequence.new(2.2, 3.2),
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 1),
-				NumberSequenceKeypoint.new(0.3, 0.35),
-				NumberSequenceKeypoint.new(0.7, 0.35),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-			Lifetime = NumberRange.new(3, 5),
-			Speed = NumberRange.new(0.01),
-			Rotation = NumberRange.new(0, 360),
-			RotSpeed = NumberRange.new(-12, 12),
 			Orientation = Enum.ParticleOrientation.VelocityPerpendicular,
 		},
 	},

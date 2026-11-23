@@ -6,6 +6,7 @@ local BackpackMessages = require(ReplicatedStorage.Shared.Constants.BackpackMess
 local SellMessages = require(ReplicatedStorage.Shared.Constants.SellMessages)
 local UiIcons = require(ReplicatedStorage.Shared.Constants.UiIcons)
 local NumberFormat = require(ReplicatedStorage.Shared.Utils.NumberFormat)
+local WeaponWeight = require(ReplicatedStorage.Shared.Utils.WeaponWeight)
 local WeatherMessages = require(ReplicatedStorage.Shared.Constants.WeatherMessages)
 local GuiPath = require(script.Parent.GuiPath)
 local RarityGradient = require(script.Parent.RarityGradient)
@@ -21,6 +22,8 @@ local SELL_BUTTON_NAME = "SellButton"
 local SELL_ALL_BUTTON_NAME = "SellAllButton"
 local BUTTON_LABEL_NAME = "Label"
 local LOCK_BUTTON_NAME = "LockButton"
+local MUTATION_LABEL_NAME = "MutationLabel"
+local WEIGHT_LABEL_NAME = "WeightLabel"
 local ITEM_ID_ATTRIBUTE = "ItemId"
 local SLOT_SELECTED_COLOR = Color3.new(1, 1, 1)
 local SLOT_DEFAULT_COLOR = Color3.fromRGB(15, 15, 25)
@@ -39,9 +42,12 @@ export type BackpackItem = {
 	Level: number?,
 	Description: string?,
 	IsEquipped: boolean?,
+	IsHeld: boolean?,
+	Income: number?,
 	IsBroken: boolean?,
 	IsLocked: boolean?,
 	Mutation: string?,
+	Weight: number?,
 }
 
 export type Options = {
@@ -78,7 +84,8 @@ local function getMutationText(mutation: string?): string
 	if not mutation then
 		return BackpackMessages.NoMutationText
 	end
-	return WeatherMessages.MutationNames[mutation] or mutation
+	local mutationName = WeatherMessages.MutationNames[mutation] or mutation
+	return string.format(BackpackMessages.MutationFormat, mutationName)
 end
 
 local function getSlotBadgeText(item: BackpackItem): string
@@ -88,9 +95,44 @@ local function getSlotBadgeText(item: BackpackItem): string
 	return string.format(BackpackMessages.AmountFormat, item.Amount)
 end
 
+local function ensureWeightLabel(content: Instance): TextLabel?
+	local existing = content:FindFirstChild(WEIGHT_LABEL_NAME)
+	if existing and existing:IsA("TextLabel") then
+		return existing
+	end
+	local mutation = content:FindFirstChild(MUTATION_LABEL_NAME)
+	if not mutation or not mutation:IsA("TextLabel") then
+		return nil
+	end
+	local order = mutation.LayoutOrder
+	for _, sibling in content:GetChildren() do
+		if sibling:IsA("GuiObject") and sibling.LayoutOrder > order then
+			sibling.LayoutOrder += 1
+		end
+	end
+	local label = mutation:Clone()
+	label.Name = WEIGHT_LABEL_NAME
+	label.LayoutOrder = order + 1
+	label.Parent = content
+	return label
+end
+
+local function showWeight(content: Instance, item: BackpackItem, isWeapon: boolean)
+	local label = ensureWeightLabel(content)
+	if label == nil then
+		return
+	end
+	local weight = item.Weight
+	label.Visible = isWeapon and weight ~= nil
+	if weight then
+		label.Text = string.format(BackpackMessages.WeightFormat, WeaponWeight.Format(weight))
+	end
+end
+
 local function showWeaponInfo(content: Instance, item: BackpackItem, isWeapon: boolean)
 	GuiPath.SetVisible(content, { "RarityLabel" }, isWeapon and item.Rarity ~= nil)
 	GuiPath.SetVisible(content, { "MutationLabel" }, isWeapon)
+	showWeight(content, item, isWeapon)
 	if not isWeapon then
 		return
 	end
@@ -138,7 +180,9 @@ local function fillDetail(detail: Frame, item: BackpackItem, actionText: string?
 	local levelText = string.format(BackpackMessages.LevelFormat, item.Level or 0)
 	GuiPath.SetText(content, { "PriceRow", "LevelLabel" }, levelText)
 	GuiPath.SetVisible(content, { "PriceRow", "LevelLabel" }, isWeapon and item.Level ~= nil)
-	local priceText = string.format(BackpackMessages.PriceFormat, NumberFormat.WithCommas(item.Price))
+	local priceText = if isWeapon and item.Income
+		then string.format(BackpackMessages.IncomeFormat, NumberFormat.Abbreviate(item.Income))
+		else string.format(BackpackMessages.PriceFormat, NumberFormat.Abbreviate(item.Price))
 	GuiPath.SetText(content, { "PriceRow", "PriceLabel" }, priceText)
 	GuiPath.SetImage(content, { "ItemImage" }, item.Image)
 	GuiPath.SetImageColor(content, { "ItemImage" }, item.Color)

@@ -48,6 +48,34 @@ function SellService.Sell(player: Player, weaponId: string): (boolean, string?, 
 	return true, nil, price
 end
 
+local function isSellableWeapon(data: any, weaponId: string): boolean
+	local weapon = data.Weapons[weaponId]
+	return weapon ~= nil
+		and weapon.IsLocked ~= true
+		and table.find(data.Equipped, weaponId) == nil
+end
+
+function SellService.SellWeapons(
+	player: Player,
+	weaponIds: { string }
+): (boolean, string?, number?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded", nil
+	end
+	local buffMultiplier = SellPrice.GetBuffMultiplier(data, os.time())
+	local prices: { [string]: number } = {}
+	for _, weaponId in weaponIds do
+		if prices[weaponId] == nil and isSellableWeapon(data, weaponId) then
+			local weapon = data.Weapons[weaponId]
+			local isBroken = weapon.State == DataTemplate.WeaponStates.Broken
+			prices[weaponId] =
+				SellPrice.Calculate(weapon.Value, weapon.Mutation, isBroken, buffMultiplier)
+		end
+	end
+	return DataActions.TrySellWeapons(player, prices)
+end
+
 local function sendResult(player: Player, ok: boolean, reason: string?, coins: number?)
 	if notifySellResult ~= nil then
 		notifySellResult:FireClient(player, ok, reason, coins)
@@ -68,6 +96,42 @@ local function onRequestSell(player: Player, weaponId: any)
 		return
 	end
 	local ok, reason, coins = SellService.Sell(player, weaponId)
+	sendResult(player, ok, reason, coins)
+end
+
+local function isValidWeaponIdList(weaponIds: any): boolean
+	if type(weaponIds) ~= "table" then
+		return false
+	end
+	local count = #weaponIds
+	if count < 1 or count > SellConfig.MaxWeaponSellPerRequest then
+		return false
+	end
+	for key, weaponId in weaponIds do
+		if type(key) ~= "number" or key % 1 ~= 0 or key < 1 or key > count then
+			return false
+		end
+		if type(weaponId) ~= "string" or #weaponId > MAX_WEAPON_ID_LENGTH then
+			return false
+		end
+	end
+	return true
+end
+
+local function onRequestSellAllWeapons(player: Player, weaponIds: any)
+	if not DataService.IsLoaded(player) then
+		sendResult(player, false, "NotLoaded", nil)
+		return
+	end
+	if not RateLimiter.Check(player, RATE_LIMIT_KEY) then
+		sendResult(player, false, "RateLimited", nil)
+		return
+	end
+	if not isValidWeaponIdList(weaponIds) then
+		sendResult(player, false, "InvalidRequest", nil)
+		return
+	end
+	local ok, reason, coins = SellService.SellWeapons(player, weaponIds)
 	sendResult(player, ok, reason, coins)
 end
 
@@ -144,6 +208,11 @@ function SellService.Init()
 	requestSellItem.Name = RemoteNames.RequestSellItem
 	requestSellItem.Parent = remotesFolder
 	requestSellItem.OnServerEvent:Connect(onRequestSellItem)
+
+	local requestSellAll = Instance.new("RemoteEvent")
+	requestSellAll.Name = RemoteNames.RequestSellAllWeapons
+	requestSellAll.Parent = remotesFolder
+	requestSellAll.OnServerEvent:Connect(onRequestSellAllWeapons)
 end
 
 return SellService

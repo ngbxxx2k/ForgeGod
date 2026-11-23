@@ -1,5 +1,6 @@
 --!strict
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
@@ -7,6 +8,7 @@ local BackpackMessages = require(ReplicatedStorage.Shared.Constants.BackpackMess
 local UiIcons = require(ReplicatedStorage.Shared.Constants.UiIcons)
 local BuffMessages = require(ReplicatedStorage.Shared.Constants.BuffMessages)
 local EquipMessages = require(ReplicatedStorage.Shared.Constants.EquipMessages)
+local PlayerAttributes = require(ReplicatedStorage.Shared.Constants.PlayerAttributes)
 local SellMessages = require(ReplicatedStorage.Shared.Constants.SellMessages)
 local WeaponLockMessages = require(ReplicatedStorage.Shared.Constants.WeaponLockMessages)
 local NumberFormat = require(ReplicatedStorage.Shared.Utils.NumberFormat)
@@ -51,10 +53,10 @@ local BackpackController = {}
 
 local isInitialized = false
 local currentTabId = WEAPON_TAB_ID
-local requestEquip: RemoteEvent? = nil
-local requestUnequip: RemoteEvent? = nil
+local requestHold: RemoteEvent? = nil
 local requestSell: RemoteEvent? = nil
 local requestSellItem: RemoteEvent? = nil
+local requestSellAllWeapons: RemoteEvent? = nil
 local requestSetLock: RemoteEvent? = nil
 local requestUseItem: RemoteEvent? = nil
 
@@ -98,9 +100,8 @@ local function onItemAction(item: BackpackItem)
 	if item.Category ~= WEAPON_TAB_ID then
 		return
 	end
-	local remote = if item.IsEquipped then requestUnequip else requestEquip
-	if remote then
-		remote:FireServer(item.Id)
+	if requestHold then
+		requestHold:FireServer(item.Id)
 	end
 end
 
@@ -125,11 +126,51 @@ local function sellStackItem(item: BackpackItem, isSellAll: boolean)
 			SellMessages.ConfirmItemFormat,
 			NumberFormat.WithCommas(amount),
 			item.DisplayName,
-			NumberFormat.WithCommas(total)
+			NumberFormat.Abbreviate(total)
 		),
 		ConfirmText = SellMessages.SellText,
 		OnConfirm = function()
 			remote:FireServer(item.Id, amount)
+		end,
+	})
+end
+
+local function getSellableWeapons(): ({ string }, number)
+	local state = PlayerStateController.GetState()
+	local weaponIds: { string } = {}
+	local total = 0
+	if state == nil then
+		return weaponIds, total
+	end
+	for _, weapon in InventoryItems.GetWeapons(state) do
+		if not weapon.IsEquipped and not weapon.IsLocked then
+			table.insert(weaponIds, weapon.Id)
+			total += getSellPrice(weapon)
+		end
+	end
+	return weaponIds, total
+end
+
+local function sellAllWeapons()
+	local remote = requestSellAllWeapons
+	if not remote then
+		return
+	end
+	local weaponIds, total = getSellableWeapons()
+	if #weaponIds == 0 then
+		Toast.Show(SellMessages.NotificationTitle, SellMessages.NoWeaponsToSell)
+		return
+	end
+	ConfirmScreen.Show({
+		Title = SellMessages.ConfirmAllWeaponsTitle,
+		Message = string.format(
+			SellMessages.ConfirmAllWeaponsFormat,
+			NumberFormat.WithCommas(#weaponIds),
+			NumberFormat.Abbreviate(total)
+		),
+		ConfirmText = SellMessages.SellAllText,
+		OnConfirm = function()
+			remote:FireServer(weaponIds)
 		end,
 	})
 end
@@ -139,11 +180,15 @@ local function onSellItem(item: BackpackItem, isSellAll: boolean)
 		sellStackItem(item, isSellAll)
 		return
 	end
+	if isSellAll then
+		sellAllWeapons()
+		return
+	end
 	local remote = requestSell
 	if item.IsEquipped or item.IsLocked or not remote then
 		return
 	end
-	local priceText = NumberFormat.WithCommas(getSellPrice(item))
+	local priceText = NumberFormat.Abbreviate(getSellPrice(item))
 	ConfirmScreen.Show({
 		Title = SellMessages.ConfirmTitle,
 		Message = string.format(SellMessages.ConfirmFormat, item.DisplayName, priceText),
@@ -156,7 +201,7 @@ end
 
 local function onSellResult(ok: any, reason: any, coins: any)
 	if ok == true and type(coins) == "number" then
-		local text = string.format(SellMessages.SoldFormat, NumberFormat.WithCommas(coins))
+		local text = string.format(SellMessages.SoldFormat, NumberFormat.Abbreviate(coins))
 		Toast.Show(SellMessages.NotificationTitle, text)
 		UiSound.PlaySell()
 		return
@@ -191,12 +236,12 @@ local function onUseItemResult(ok: any, reason: any, itemId: any)
 	Toast.Show(BuffMessages.NotificationTitle, message or BuffMessages.UnknownError)
 end
 
-local function onEquipResult(ok: any, reason: any)
+local function onHoldResult(ok: any, reason: any)
 	if ok == true then
 		return
 	end
 	local message = type(reason) == "string" and EquipMessages.Reasons[reason]
-	Toast.Show(EquipMessages.NotificationTitle, message or EquipMessages.UnknownError)
+	Toast.Show(EquipMessages.HoldTitle, message or EquipMessages.UnknownError)
 end
 
 function BackpackController.Init()
@@ -206,12 +251,12 @@ function BackpackController.Init()
 	isInitialized = true
 
 	local remotes = ReplicatedStorage:WaitForChild(REMOTES_FOLDER_NAME)
-	requestEquip = remotes:WaitForChild(RemoteNames.RequestEquip) :: RemoteEvent
-	requestUnequip = remotes:WaitForChild(RemoteNames.RequestUnequip) :: RemoteEvent
-	local resultRemote = remotes:WaitForChild(RemoteNames.NotifyEquipResult) :: RemoteEvent
-	resultRemote.OnClientEvent:Connect(onEquipResult)
+	requestHold = remotes:WaitForChild(RemoteNames.RequestHoldWeapon) :: RemoteEvent
+	local holdResult = remotes:WaitForChild(RemoteNames.NotifyHoldResult) :: RemoteEvent
+	holdResult.OnClientEvent:Connect(onHoldResult)
 	requestSell = remotes:WaitForChild(RemoteNames.RequestSellWeapon) :: RemoteEvent
 	requestSellItem = remotes:WaitForChild(RemoteNames.RequestSellItem) :: RemoteEvent
+	requestSellAllWeapons = remotes:WaitForChild(RemoteNames.RequestSellAllWeapons) :: RemoteEvent
 	local sellResult = remotes:WaitForChild(RemoteNames.NotifySellResult) :: RemoteEvent
 	sellResult.OnClientEvent:Connect(onSellResult)
 	requestSetLock = remotes:WaitForChild(RemoteNames.RequestSetWeaponLock) :: RemoteEvent
@@ -229,6 +274,7 @@ function BackpackController.Init()
 	PlayerStateController.OnChanged(function()
 		render()
 	end)
+	Players.LocalPlayer:GetAttributeChangedSignal(PlayerAttributes.HeldWeaponId):Connect(render)
 	render()
 end
 

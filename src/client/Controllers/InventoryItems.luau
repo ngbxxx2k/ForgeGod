@@ -1,13 +1,17 @@
 --!strict
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BackpackMessages = require(ReplicatedStorage.Shared.Constants.BackpackMessages)
 local ItemVisuals = require(ReplicatedStorage.Shared.Constants.ItemVisuals)
+local PlayerAttributes = require(ReplicatedStorage.Shared.Constants.PlayerAttributes)
+local WeaponIncome = require(ReplicatedStorage.Shared.Utils.WeaponIncome)
 local PlayerStateTypes = require(ReplicatedStorage.Shared.Types.PlayerStateTypes)
 local ShopConfig = require(ReplicatedStorage.Shared.Config.ShopConfig)
 local SellPrice = require(ReplicatedStorage.Shared.Utils.SellPrice)
-local WeaponCatalog = require(ReplicatedStorage.Shared.Constants.WeaponCatalog)
+local WeaponTypeName = require(ReplicatedStorage.Shared.Utils.WeaponTypeName)
+local WeaponWeight = require(ReplicatedStorage.Shared.Utils.WeaponWeight)
 local BackpackScreen = require(script.Parent.Parent.UI.Screens.BackpackScreen)
 
 export type BackpackItem = BackpackScreen.BackpackItem
@@ -38,12 +42,7 @@ local function getItemRarity(itemId: string): string?
 end
 
 function InventoryItems.GetWeaponName(weapon: WeaponSummary): string
-	local name = weapon.WeaponType
-	for _, weaponType in WeaponCatalog.Types[weapon.Rarity] or {} do
-		if weaponType.Id == weapon.WeaponType then
-			name = weaponType.DisplayName
-		end
-	end
+	local name = WeaponTypeName.Get(weapon.Rarity, weapon.WeaponType)
 	if weapon.State == BROKEN_STATE then
 		return string.format(BackpackMessages.BrokenNameFormat, name)
 	end
@@ -94,6 +93,7 @@ function InventoryItems.GetBuffs(state: PlayerState): { BackpackItem }
 end
 
 function InventoryItems.GetWeapons(state: PlayerState): { BackpackItem }
+	local heldWeaponId = Players.LocalPlayer:GetAttribute(PlayerAttributes.HeldWeaponId)
 	local items = {}
 	for _, weapon in state.Weapons do
 		table.insert(items, {
@@ -105,9 +105,12 @@ function InventoryItems.GetWeapons(state: PlayerState): { BackpackItem }
 			Level = weapon.Level,
 			Rarity = weapon.Rarity,
 			IsEquipped = table.find(state.Equipped, weapon.Id) ~= nil,
+			IsHeld = weapon.Id == heldWeaponId,
+			Income = WeaponIncome.PerSecond(weapon.Value, weapon.Mutation, weapon.State == BROKEN_STATE),
 			IsBroken = weapon.State == BROKEN_STATE,
 			IsLocked = weapon.IsLocked == true,
 			Mutation = weapon.Mutation,
+			Weight = WeaponWeight.Get(weapon.WeaponType, weapon.Scale),
 		})
 	end
 	table.sort(items, function(a: BackpackItem, b: BackpackItem): boolean
@@ -119,7 +122,7 @@ end
 function InventoryItems.GetForgeableWeapons(state: PlayerState): { BackpackItem }
 	local items = {}
 	for _, item in InventoryItems.GetWeapons(state) do
-		if not item.IsBroken and not item.IsLocked then
+		if not item.IsBroken and not item.IsLocked and not item.IsEquipped then
 			table.insert(items, item)
 		end
 	end
@@ -127,11 +130,7 @@ function InventoryItems.GetForgeableWeapons(state: PlayerState): { BackpackItem 
 end
 
 function InventoryItems.GetUsedSlots(state: PlayerState): number
-	local used = #state.Weapons
-	for _, amount in state.Items do
-		used += amount
-	end
-	return used
+	return #state.Weapons
 end
 
 return InventoryItems

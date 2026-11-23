@@ -13,15 +13,11 @@ FurnaceConfig.RecipeSize = 5
 -- Giá gốc vũ khí/phôi theo độ hiếm (doc mục 2, lựa chọn của người dùng).
 FurnaceConfig.BaseValues = {
 	Common = 500,
+	Uncommon = 1200,
 	Rare = 2500,
 	Epic = 20000,
 	Legendary = 200000,
 	Mythic = 1200000,
 }
-
--- Hệ số giá phôi: giá phôi = giá gốc x hệ số random trong khoảng này
--- (F3.3, doc mục 3: hệ số trong khoảng 1 đến 2).
-FurnaceConfig.MinValueMultiplier = 1
-FurnaceConfig.MaxValueMultiplier = 2
 
 return FurnaceConfig

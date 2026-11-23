@@ -1,16 +1,30 @@
 --!strict
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local FurnaceConfig = require(ReplicatedStorage.Shared.Config.FurnaceConfig)
+local StationConfig = require(ReplicatedStorage.Shared.Config.StationConfig)
+local PlotStations = require(ReplicatedStorage.Shared.Utils.PlotStations)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
+local FurnaceMessages = require(ReplicatedStorage.Shared.Constants.FurnaceMessages)
+local ForgeRevealTypes = require(ReplicatedStorage.Shared.Types.ForgeRevealTypes)
 local FurnaceScreen = require(script.Parent.Parent.UI.Screens.FurnaceScreen)
+local SmeltOddsScreen = require(script.Parent.Parent.UI.Screens.SmeltOddsScreen)
+local Toast = require(script.Parent.Parent.UI.Components.Toast)
+local ForgeRevealController = require(script.Parent.ForgeRevealController)
+local OreCrucibleFx = require(script.Parent.Parent.Effects.OreCrucibleFx)
+local OreDropFx = require(script.Parent.Parent.Effects.OreDropFx)
+local CrucibleStance = require(script.Parent.CrucibleStance)
 local InventoryItems = require(script.Parent.InventoryItems)
 local PlayerStateController = require(script.Parent.PlayerStateController)
+local SmeltOddsController = require(script.Parent.SmeltOddsController)
 
 type FurnaceOre = FurnaceScreen.FurnaceOre
+type SmeltResult = ForgeRevealTypes.SmeltResult
 
 local REMOTES_FOLDER_NAME = "Remotes"
+local WEAPON_SLOT_COST = 1
 
 local FurnaceController = {}
 
@@ -18,6 +32,17 @@ local isInitialized = false
 local isSkipping = false
 local ownedOres: { FurnaceOre } = {}
 local selectedIds: { string } = {}
+local pendingSelection: { string }? = nil
+
+local function findCrucible(): Model?
+	local userId = Players.LocalPlayer.UserId
+	local crucible = PlotStations.FindOwnedStation(userId, StationConfig.FurnaceModelName)
+	if crucible then
+		return crucible
+	end
+	warn("[FurnaceController] Missing crucible", StationConfig.FurnaceModelName)
+	return nil
+end
 
 local function loadOwnedOres()
 	ownedOres = {}
@@ -77,9 +102,18 @@ local function buildSelectedView(): { FurnaceOre }
 	return selected
 end
 
+local function buildRecipe(): { [string]: number }
+	local recipe = {}
+	for _, oreId in selectedIds do
+		recipe[oreId] = (recipe[oreId] or 0) + 1
+	end
+	return recipe
+end
+
 local function refresh()
 	FurnaceScreen.Render(buildBagView(), buildSelectedView())
 	FurnaceScreen.SetSkipChecked(isSkipping)
+	SmeltOddsController.Update(buildRecipe(), #selectedIds == FurnaceConfig.RecipeSize)
 end
 
 local function addOre(oreId: string)
@@ -92,6 +126,10 @@ local function addOre(oreId: string)
 	end
 	table.insert(selectedIds, oreId)
 	refresh()
+	local crucible = findCrucible()
+	if crucible then
+		OreDropFx.Drop(oreId, crucible)
+	end
 end
 
 local function removeOre(slotIndex: number)
@@ -102,16 +140,37 @@ local function removeOre(slotIndex: number)
 	refresh()
 end
 
-local function buildRecipe(): { [string]: number }
-	local recipe = {}
-	for _, oreId in selectedIds do
-		recipe[oreId] = (recipe[oreId] or 0) + 1
+local function onRevealFinished()
+	if CrucibleStance.IsActive() then
+		refresh()
+		FurnaceScreen.SetVisible(true)
 	end
-	return recipe
+end
+
+local function isInventoryFull(): boolean
+	local state = PlayerStateController.GetState()
+	if state == nil then
+		return false
+	end
+	return InventoryItems.GetUsedSlots(state) + WEAPON_SLOT_COST > state.Capacity
+end
+
+local function restorePendingSelection()
+	local pending = pendingSelection
+	pendingSelection = nil
+	if pending == nil or #selectedIds > 0 then
+		return
+	end
+	selectedIds = pending
+	refresh()
 end
 
 local function startSmelting()
 	if #selectedIds ~= FurnaceConfig.RecipeSize then
+		return
+	end
+	if isInventoryFull() then
+		Toast.Show(FurnaceMessages.ToastTitle, FurnaceMessages.Reasons.InventoryFull)
 		return
 	end
 	local remotes = ReplicatedStorage:FindFirstChild(REMOTES_FOLDER_NAME)
@@ -121,8 +180,52 @@ local function startSmelting()
 		return
 	end
 	requestSmelt:FireServer(buildRecipe())
+	pendingSelection = selectedIds
 	selectedIds = {}
 	refresh()
+	local crucible = findCrucible()
+	if crucible == nil then
+		return
+	end
+	OreCrucibleFx.Erupt(crucible)
+	if not isSkipping then
+		FurnaceScreen.SetVisible(false)
+		ForgeRevealController.Begin(crucible, onRevealFinished)
+	end
+end
+
+local function parseResult(weapon: any): SmeltResult?
+	if type(weapon) ~= "table" then
+		return nil
+	end
+	local isValid = type(weapon.Id) == "string" and type(weapon.Rarity) == "string"
+		and type(weapon.WeaponType) == "string" and type(weapon.WeaponTypeId) == "string"
+		and type(weapon.Value) == "number" and type(weapon.Scale) == "number"
+	return if isValid then weapon :: SmeltResult else nil
+end
+
+local function onSmeltResult(ok: boolean, reason: string?, weapon: any)
+	local result = if ok then parseResult(weapon) else nil
+	if result == nil then
+		ForgeRevealController.Cancel()
+		restorePendingSelection()
+		local message = reason and (FurnaceMessages.Reasons :: any)[reason]
+		Toast.Show(FurnaceMessages.ToastTitle, message or FurnaceMessages.UnknownError)
+		return
+	end
+	pendingSelection = nil
+	if ForgeRevealController.IsWaitingForResult() then
+		ForgeRevealController.ShowResult(result)
+		return
+	end
+	local text = string.format(FurnaceMessages.ResultFormat, result.WeaponType, result.Rarity)
+	Toast.Show(FurnaceMessages.ToastTitle, text)
+end
+
+local function connectResultRemote()
+	local remotes = ReplicatedStorage:WaitForChild(REMOTES_FOLDER_NAME)
+	local resultRemote = remotes:WaitForChild(RemoteNames.NotifySmeltResult) :: RemoteEvent
+	resultRemote.OnClientEvent:Connect(onSmeltResult)
 end
 
 local function pruneSelected()
@@ -152,12 +255,19 @@ end
 
 function FurnaceController.Open()
 	selectedIds = {}
+	pendingSelection = nil
 	refresh()
+	SmeltOddsScreen.Hide()
+	local crucible = findCrucible()
+	if crucible then
+		CrucibleStance.Enter(crucible)
+	end
 	FurnaceScreen.SetVisible(true)
 end
 
 function FurnaceController.Close()
 	FurnaceScreen.SetVisible(false)
+	CrucibleStance.Exit()
 end
 
 function FurnaceController.IsSkipping(): boolean
@@ -179,6 +289,13 @@ function FurnaceController.Init()
 		OnClose = FurnaceController.Close,
 	})
 	PlayerStateController.OnChanged(onStateChanged)
+	task.spawn(connectResultRemote)
+	Players.LocalPlayer.CharacterRemoving:Connect(function()
+		ForgeRevealController.Cancel()
+		if CrucibleStance.IsActive() then
+			FurnaceController.Close()
+		end
+	end)
 	refresh()
 end
 
