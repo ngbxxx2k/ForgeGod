@@ -1,20 +1,48 @@
 --!strict
---[[
-	WeaponCatalog
-	Trách nhiệm: danh mục 30 loại vũ khí (F3.5): 5 họ vũ khí x 6 độ hiếm.
-	-- PLACEHOLDER: doc chưa đặt tên 30 loại, tên hiển thị dưới đây là tạm.
-]]
 
-type WeaponType = {
-	Id: string, -- mã loại vũ khí, ví dụ "CommonSword"
-	Family: string, -- họ vũ khí: Sword/Axe/Spear/Dagger/Hammer
-	DisplayName: string, -- tên hiển thị cho client
+export type WeaponType = {
+	Id: string,
+	Rarity: string,
+	Family: string,
+	DisplayName: string,
+	MaxShapeStage: number,
 }
 
-local RARITY_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
-local FAMILIES = { "Sword", "Axe", "Spear", "Dagger", "Hammer" }
+type FamilyEntry = { Family: string, MaxShapeStage: number }
 
--- PLACEHOLDER: tiền tố tên hiển thị theo độ hiếm.
+local RARITY_ORDER = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
+local FAMILIES = { "Sword", "Axe", "Spear", "Dagger", "Hammer", "Scythe" }
+
+local FAMILIES_BY_RARITY: { [string]: { FamilyEntry } } = {
+	Common = {
+		{ Family = "Sword", MaxShapeStage = 2 },
+		{ Family = "Scythe", MaxShapeStage = 1 },
+	},
+	Uncommon = {
+		{ Family = "Sword", MaxShapeStage = 2 },
+		{ Family = "Axe", MaxShapeStage = 2 },
+		{ Family = "Hammer", MaxShapeStage = 2 },
+	},
+	Rare = {
+		{ Family = "Sword", MaxShapeStage = 3 },
+		{ Family = "Axe", MaxShapeStage = 3 },
+		{ Family = "Dagger", MaxShapeStage = 3 },
+	},
+	Epic = {
+		{ Family = "Sword", MaxShapeStage = 4 },
+		{ Family = "Scythe", MaxShapeStage = 4 },
+		{ Family = "Axe", MaxShapeStage = 4 },
+	},
+	Legendary = {
+		{ Family = "Sword", MaxShapeStage = 5 },
+		{ Family = "Axe", MaxShapeStage = 5 },
+		{ Family = "Spear", MaxShapeStage = 5 },
+	},
+	Mythic = {
+		{ Family = "Sword", MaxShapeStage = 5 },
+	},
+}
+
 local NAME_PREFIX = {
 	Common = "Copper",
 	Uncommon = "Iron",
@@ -27,20 +55,41 @@ local NAME_PREFIX = {
 local WeaponCatalog = {}
 
 WeaponCatalog.Families = FAMILIES
+WeaponCatalog.RarityOrder = RARITY_ORDER
 
--- Types[rarity] = danh sách 5 loại vũ khí của độ hiếm đó.
 WeaponCatalog.Types = {} :: { [string]: { WeaponType } }
+WeaponCatalog.ById = {} :: { [string]: WeaponType }
 
 for _, rarity in RARITY_ORDER do
 	local list = {}
-	for _, family in FAMILIES do
-		table.insert(list, {
-			Id = rarity .. family,
-			Family = family,
-			DisplayName = NAME_PREFIX[rarity] .. " " .. family,
-		})
+	for _, entry in FAMILIES_BY_RARITY[rarity] do
+		local weaponType: WeaponType = {
+			Id = rarity .. entry.Family,
+			Rarity = rarity,
+			Family = entry.Family,
+			DisplayName = NAME_PREFIX[rarity] .. " " .. entry.Family,
+			MaxShapeStage = entry.MaxShapeStage,
+		}
+		table.insert(list, weaponType)
+		WeaponCatalog.ById[weaponType.Id] = weaponType
 	end
 	WeaponCatalog.Types[rarity] = list
+end
+
+function WeaponCatalog.Resolve(weaponTypeId: string?): WeaponType?
+	if weaponTypeId == nil then
+		return nil
+	end
+	local exact = WeaponCatalog.ById[weaponTypeId]
+	if exact then
+		return exact
+	end
+	for _, rarity in RARITY_ORDER do
+		if string.sub(weaponTypeId, 1, #rarity) == rarity then
+			return WeaponCatalog.Types[rarity][1]
+		end
+	end
+	return nil
 end
 
 return WeaponCatalog

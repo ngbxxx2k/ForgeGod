@@ -10,27 +10,33 @@ local ScrollCanvas = require(script.Parent.Parent.Components.ScrollCanvas)
 local UiSound = require(script.Parent.Parent.Parent.Effects.UiSound)
 local OpenAnimation = require(script.Parent.Parent.Components.OpenAnimation)
 local ShopColors = require(ReplicatedStorage.Shared.Constants.ShopColors)
+local NumberFormat = require(ReplicatedStorage.Shared.Utils.NumberFormat)
 
 local SHOP_GUI_NAME = "ShopGui"
 local BUTTON_LABEL_NAME = "Label"
 local ITEM_CARD_NAME = "ItemCard"
 local TEMPLATE_NAME = "ItemCardTemplate"
 local BUY_ROW_NAME = "BuyRow"
+local COINS_BUTTON_NAME = "BuyCoinsButton"
+local ROBUX_BUTTON_NAME = "BuyRobuxButton"
+local GIFT_BUTTON_NAME = "GiftButton"
+local RESTOCK_BUTTON_NAME = "RestockButton"
 local STOCK_FORMAT = "X%d STOCK"
-local PRICE_FORMAT = "$%d"
+local PRICE_FORMAT = "$%s"
 local CARD_ORDER_STEP = 10
 local SELECTED_STROKE_COLOR = Color3.new(1, 1, 1)
 local DEFAULT_STROKE_COLOR = Color3.fromRGB(15, 15, 25)
 
 local RARITY_BADGE_NAME = "RarityBadge"
 
-export type ShopCategory = "Ore" | "Item"
+export type ShopCategory = "Item"
 
 export type ShopEntry = {
 	Id: string,
 	DisplayName: string,
 	Stock: number,
 	Price: number,
+	RobuxText: string?,
 	Rarity: string,
 	Image: string?,
 	Color: Color3?,
@@ -47,6 +53,10 @@ local selectedCard: Frame? = nil
 local entryByCard: { [Frame]: ShopEntry } = {}
 local restockLabel: TextLabel? = nil
 local buyHandler: ((itemId: string) -> ())? = nil
+local robuxBuyHandler: ((itemId: string) -> ())? = nil
+local giftHandler: ((itemId: string) -> ())? = nil
+local restockHandler: (() -> ())? = nil
+local restockButton: GuiButton? = nil
 local categoryHandler: ((category: ShopCategory) -> ())? = nil
 local currentCategory: ShopCategory? = nil
 
@@ -84,7 +94,14 @@ local function showBuyRow(card: Frame)
 	end
 	local entry = entryByCard[card]
 	if entry then
-		setText(row, "BuyCoinsButton", string.format(PRICE_FORMAT, entry.Price))
+		setText(row, "BuyCoinsButton", string.format(PRICE_FORMAT, NumberFormat.Abbreviate(entry.Price)))
+		setText(row, ROBUX_BUTTON_NAME, entry.RobuxText or "")
+		for _, buttonName in { ROBUX_BUTTON_NAME, GIFT_BUTTON_NAME } do
+			local button = row:FindFirstChild(buttonName)
+			if button and button:IsA("GuiObject") then
+				button.Visible = entry.RobuxText ~= nil
+			end
+		end
 	end
 	row.LayoutOrder = card.LayoutOrder + 1
 	row.Visible = true
@@ -124,7 +141,7 @@ end
 local function fillCard(card: Frame, entry: ShopEntry)
 	setText(card, "ItemName", entry.DisplayName)
 	setText(card, "Stock", string.format(STOCK_FORMAT, entry.Stock))
-	setText(card, "Price", string.format(PRICE_FORMAT, entry.Price))
+	setText(card, "Price", string.format(PRICE_FORMAT, NumberFormat.Abbreviate(entry.Price)))
 	setText(card, "Rarity", entry.Rarity)
 	local rarityBadge = card:FindFirstChild(RARITY_BADGE_NAME)
 	if rarityBadge and rarityBadge:IsA("GuiObject") then
@@ -156,17 +173,49 @@ local function findCardById(itemId: string): Frame?
 	return nil
 end
 
-local function bindBuyButton(row: Frame)
-	local buyButton = row:FindFirstChild("BuyCoinsButton")
-	if not buyButton or not buyButton:IsA("GuiButton") then
-		warn("[ShopScreen] Missing BuyCoinsButton")
+local function getSelectedItemId(): string?
+	local card = selectedCard
+	local entry = card and entryByCard[card]
+	return entry and entry.Id
+end
+
+local function bindRowButton(row: Frame, buttonName: string, getHandler: () -> ((itemId: string) -> ())?)
+	local button = row:FindFirstChild(buttonName)
+	if not button or not button:IsA("GuiButton") then
+		warn("[ShopScreen] Missing", buttonName)
 		return
 	end
-	buyButton.Activated:Connect(function()
-		local card = selectedCard
-		local entry = card and entryByCard[card]
-		if entry and buyHandler then
-			buyHandler(entry.Id)
+	button.Activated:Connect(function()
+		local itemId = getSelectedItemId()
+		local handler = getHandler()
+		if itemId and handler then
+			handler(itemId)
+		end
+	end)
+end
+
+local function bindBuyButtons(row: Frame)
+	bindRowButton(row, COINS_BUTTON_NAME, function()
+		return buyHandler
+	end)
+	bindRowButton(row, ROBUX_BUTTON_NAME, function()
+		return robuxBuyHandler
+	end)
+	bindRowButton(row, GIFT_BUTTON_NAME, function()
+		return giftHandler
+	end)
+end
+
+local function bindRestockButton(header: Instance)
+	local button = header:FindFirstChild(RESTOCK_BUTTON_NAME)
+	if not button or not button:IsA("GuiButton") then
+		warn("[ShopScreen] Missing", RESTOCK_BUTTON_NAME)
+		return
+	end
+	restockButton = button
+	button.Activated:Connect(function()
+		if restockHandler then
+			restockHandler()
 		end
 	end)
 end
@@ -243,6 +292,25 @@ function ShopScreen.SetBuyHandler(handler: (itemId: string) -> ())
 	buyHandler = handler
 end
 
+function ShopScreen.SetRobuxBuyHandler(handler: (itemId: string) -> ())
+	robuxBuyHandler = handler
+end
+
+function ShopScreen.SetGiftHandler(handler: (itemId: string) -> ())
+	giftHandler = handler
+end
+
+function ShopScreen.SetRestockHandler(handler: () -> ())
+	restockHandler = handler
+end
+
+function ShopScreen.SetRestockButtonText(text: string)
+	local button = restockButton
+	if button then
+		setText(button.Parent :: Instance, button.Name, text)
+	end
+end
+
 function ShopScreen.SetCategoryHandler(handler: (category: ShopCategory) -> ())
 	categoryHandler = handler
 end
@@ -316,7 +384,8 @@ function ShopScreen.Init()
 	if not ScrollCanvas.BindToLayout(list :: ScrollingFrame) then
 		warn("[ShopScreen] ItemList missing layout")
 	end
-	bindBuyButton(rowAsFrame)
+	bindBuyButtons(rowAsFrame)
+	bindRestockButton(main:WaitForChild("Header"))
 	bindCloseButton(main)
 	list.ChildAdded:Connect(bindCard)
 end

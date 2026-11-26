@@ -36,7 +36,7 @@ local STATIONS: { Station } = {
 		ObjectText = StationMessages.ForgeObjectText,
 		ActionText = StationMessages.ForgeActionText,
 		Open = WeaponPickerController.Open,
-		Close = WeaponPickerController.ClosePicker,
+		Close = WeaponPickerController.CloseForgePicker,
 		ClosesOnHide = true,
 	},
 }

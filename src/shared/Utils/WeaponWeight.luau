@@ -21,14 +21,8 @@ function WeaponWeight.NormalizeScale(scale: number?): number
 end
 
 function WeaponWeight.FindFamily(weaponTypeId: string): string?
-	for _, list in WeaponCatalog.Types do
-		for _, weaponType in list do
-			if weaponType.Id == weaponTypeId then
-				return weaponType.Family
-			end
-		end
-	end
-	return nil
+	local weaponType = WeaponCatalog.Resolve(weaponTypeId)
+	return if weaponType then weaponType.Family else nil
 end
 
 function WeaponWeight.Get(weaponTypeId: string, scale: number?): number

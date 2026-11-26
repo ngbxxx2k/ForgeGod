@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local shared = ReplicatedStorage:WaitForChild("Shared")
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
 local WeaponWeightConfig = require(shared:WaitForChild("Config"):WaitForChild("WeaponWeightConfig"))
+local SpinConfig = require(shared:WaitForChild("Config"):WaitForChild("SpinConfig"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
@@ -45,6 +46,31 @@ local function buildActiveBuffs(data: any): { [string]: number }
 	return activeBuffs
 end
 
+local function buildSpinState(data: any): { [string]: number }
+	local spin = if type(data.Spin) == "table" then data.Spin else {}
+	return {
+		Tokens = spin.Tokens or 0,
+		NextFreeAt = (spin.LastFreeAt or 0) + SpinConfig.FreeSpinCooldown,
+	}
+end
+
+local function cloneOwnedTiers(source: any): { [string]: { number } }
+	local ownedTiers = {}
+	for trackId, tiers in source or {} do
+		ownedTiers[trackId] = table.clone(tiers)
+	end
+	return ownedTiers
+end
+
+local function buildTutorialState(data: any): { [string]: any }
+	local tutorial = if type(data.Tutorial) == "table" then data.Tutorial else {}
+	return {
+		StepId = tutorial.StepId,
+		DigCount = tutorial.DigCount or 0,
+		IsComplete = tutorial.IsComplete == true,
+	}
+end
+
 local function buildPayload(data: any): { [string]: any }
 	local weapons = {}
 	for _, weapon in data.Weapons do
@@ -59,6 +85,14 @@ local function buildPayload(data: any): { [string]: any }
 		LoadoutCapacity = data.Capacity.Loadout,
 		ActiveBuffs = buildActiveBuffs(data),
 		ArmedBuffs = table.clone(data.ArmedBuffs),
+		DigTools = table.clone(data.DigTools or {}),
+		OwnedDigTiers = cloneOwnedTiers(data.OwnedDigTiers),
+		OwnedForgeTiers = cloneOwnedTiers(data.OwnedForgeTiers),
+		ForgeSkins = table.clone(data.ForgeSkins or {}),
+		Index = table.clone(data.Index or {}),
+		IndexRewards = table.clone(data.IndexRewards or {}),
+		Spin = buildSpinState(data),
+		Tutorial = buildTutorialState(data),
 	}
 end
 

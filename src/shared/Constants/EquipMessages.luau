@@ -23,6 +23,8 @@ EquipMessages.Reasons = {
 	RateLimited = "Slow down!",
 	NotLoaded = "Your data is still loading, please wait.",
 	InvalidRequest = "Invalid request.",
+	InDigZone = "You can't hold a weapon at the dig site.",
+	TutorialUseEquip = "Press EQUIP on your forged weapon to continue the tutorial.",
 }
 
 return EquipMessages

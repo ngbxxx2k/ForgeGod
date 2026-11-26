@@ -14,15 +14,15 @@ local isInitialized = false
 local friendships: { [Player]: { [Player]: boolean } } = {}
 local luckByPlayer: { [Player]: number } = {}
 
-local function isFriends(player: Player, other: Player): boolean
+local function checkFriends(player: Player, other: Player): (boolean, boolean)
 	local ok, result = pcall(function()
 		return player:IsFriendsWith(other.UserId)
 	end)
 	if not ok then
 		warn("[FriendBoostService] IsFriendsWith failed:", result)
-		return false
+		return false, false
 	end
-	return result == true
+	return true, result == true
 end
 
 local function refreshLuck(player: Player)
@@ -50,12 +50,29 @@ local function linkFriends(player: Player, other: Player)
 	refreshLuck(other)
 end
 
+local function retryCheck(player: Player, other: Player)
+	if friendships[player] == nil or friendships[other] == nil then
+		return
+	end
+	local ok, isFriend = checkFriends(player, other)
+	if ok and isFriend then
+		linkFriends(player, other)
+		refreshLuck(player)
+	end
+end
+
 local function onPlayerAdded(player: Player)
 	friendships[player] = {}
 	refreshLuck(player)
 	for _, other in Players:GetPlayers() do
-		if other ~= player and isFriends(player, other) then
+		if other == player then
+			continue
+		end
+		local ok, isFriend = checkFriends(player, other)
+		if isFriend then
 			linkFriends(player, other)
+		elseif not ok then
+			task.delay(FriendBoostConfig.FriendCheckRetryDelay, retryCheck, player, other)
 		end
 	end
 	refreshLuck(player)

@@ -4,7 +4,6 @@ local ShopZoneConfig = {}
 
 ShopZoneConfig.FolderName = "ShopZones"
 ShopZoneConfig.StallPaths = {
-	Ore = { "Map", "Hub", "OreShopStall" },
 	Item = { "Map", "Hub", "ItemShopStall" },
 }
 
@@ -18,7 +17,7 @@ ShopZoneConfig.ServerRangeTolerance = 4
 
 -- PLACEHOLDER: hình dạng vòng: độ dày đĩa, số đoạn viền, độ dày và bề rộng viền phát sáng (stud)
 ShopZoneConfig.DiscThickness = 0.1
-ShopZoneConfig.DiscLift = 0.05
+ShopZoneConfig.DiscLift = 0.25
 ShopZoneConfig.RingSegments = 48
 ShopZoneConfig.RingThickness = 0.25
 ShopZoneConfig.RingWidth = 0.9

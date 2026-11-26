@@ -18,9 +18,10 @@ local isInitialized = false
 local browser: ItemBrowser.ItemBrowser? = nil
 local mainFrame: Frame? = nil
 local closeHandler: (() -> ())? = nil
+local actionText = ForgeMessages.ForgeText
 
 local function getActionText(_item: BackpackItem): string?
-	return ForgeMessages.ForgeText
+	return actionText
 end
 
 local function onClose()
@@ -35,6 +36,10 @@ function WeaponPickerScreen.Render(items: { BackpackItem })
 	if itemBrowser then
 		itemBrowser.Render(items)
 	end
+end
+
+function WeaponPickerScreen.SetActionText(text: string)
+	actionText = text
 end
 
 function WeaponPickerScreen.SetVisible(isVisible: boolean)

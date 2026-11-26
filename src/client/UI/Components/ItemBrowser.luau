@@ -7,8 +7,8 @@ local SellMessages = require(ReplicatedStorage.Shared.Constants.SellMessages)
 local UiIcons = require(ReplicatedStorage.Shared.Constants.UiIcons)
 local NumberFormat = require(ReplicatedStorage.Shared.Utils.NumberFormat)
 local WeaponWeight = require(ReplicatedStorage.Shared.Utils.WeaponWeight)
-local WeatherMessages = require(ReplicatedStorage.Shared.Constants.WeatherMessages)
 local GuiPath = require(script.Parent.GuiPath)
+local MutationLabel = require(script.Parent.MutationLabel)
 local RarityGradient = require(script.Parent.RarityGradient)
 local UiSound = require(script.Parent.Parent.Parent.Effects.UiSound)
 local OpenAnimation = require(script.Parent.OpenAnimation)
@@ -37,9 +37,12 @@ export type BackpackItem = {
 	Amount: number,
 	Price: number,
 	Image: string?,
+	ImageRectOffset: Vector2?,
+	ImageRectSize: Vector2?,
 	Color: Color3?,
 	Rarity: string?,
 	Level: number?,
+	MaxLevel: number?,
 	Description: string?,
 	IsEquipped: boolean?,
 	IsHeld: boolean?,
@@ -80,16 +83,12 @@ type Parts = {
 
 local ItemBrowser = {}
 
-local function getMutationText(mutation: string?): string
-	if not mutation then
-		return BackpackMessages.NoMutationText
-	end
-	local mutationName = WeatherMessages.MutationNames[mutation] or mutation
-	return string.format(BackpackMessages.MutationFormat, mutationName)
-end
-
 local function getSlotBadgeText(item: BackpackItem): string
 	if item.Category == "Weapon" then
+		local level, maxLevel = item.Level or 0, item.MaxLevel
+		if maxLevel and level >= maxLevel then
+			return string.format(BackpackMessages.MaxLevelFormat, level)
+		end
 		return string.format(BackpackMessages.LevelFormat, item.Level or 0)
 	end
 	return string.format(BackpackMessages.AmountFormat, item.Amount)
@@ -141,7 +140,7 @@ local function showWeaponInfo(content: Instance, item: BackpackItem, isWeapon: b
 	if rarityLabel and rarityLabel:IsA("GuiObject") then
 		RarityGradient.Apply(rarityLabel, item.Rarity)
 	end
-	GuiPath.SetText(content, { "MutationLabel" }, getMutationText(item.Mutation))
+	MutationLabel.Apply(content:FindFirstChild(MUTATION_LABEL_NAME), item.Mutation)
 end
 
 local function setButton(detail: Frame, buttonName: string, text: string?)
@@ -185,6 +184,7 @@ local function fillDetail(detail: Frame, item: BackpackItem, actionText: string?
 		else string.format(BackpackMessages.PriceFormat, NumberFormat.Abbreviate(item.Price))
 	GuiPath.SetText(content, { "PriceRow", "PriceLabel" }, priceText)
 	GuiPath.SetImage(content, { "ItemImage" }, item.Image)
+	GuiPath.SetImageRect(content, { "ItemImage" }, item.ImageRectOffset, item.ImageRectSize)
 	GuiPath.SetImageColor(content, { "ItemImage" }, item.Color)
 	showWeaponInfo(content, item, isWeapon)
 	GuiPath.SetText(content, { "InfoBox", "DescriptionLabel" }, item.Description or "")
@@ -227,6 +227,7 @@ local function createSlot(template: GuiButton, item: BackpackItem, order: number
 	GuiPath.SetText(slot, { "NameLabel" }, item.DisplayName)
 	GuiPath.SetText(slot, { "AmountLabel" }, getSlotBadgeText(item))
 	GuiPath.SetImage(slot, { "ItemImage" }, item.Image)
+	GuiPath.SetImageRect(slot, { "ItemImage" }, item.ImageRectOffset, item.ImageRectSize)
 	GuiPath.SetImageColor(slot, { "ItemImage" }, item.Color)
 	return slot
 end

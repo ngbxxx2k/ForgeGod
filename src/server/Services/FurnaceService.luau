@@ -14,11 +14,15 @@ local BuffEffects = require(shared:WaitForChild("Utils"):WaitForChild("BuffEffec
 local FurnaceConfig = require(shared:WaitForChild("Config"):WaitForChild("FurnaceConfig"))
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
 local StationConfig = require(shared:WaitForChild("Config"):WaitForChild("StationConfig"))
+local TutorialConfig = require(shared:WaitForChild("Config"):WaitForChild("TutorialConfig"))
 local WeaponCatalog = require(shared:WaitForChild("Constants"):WaitForChild("WeaponCatalog"))
+local WeaponDisplayName = require(shared:WaitForChild("Utils"):WaitForChild("WeaponDisplayName"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local FriendBoostService = require(script.Parent.FriendBoostService)
+local GamePassService = require(script.Parent.GamePassService)
+local TutorialService = require(script.Parent.TutorialService)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
 local StationRange = require(script.Parent.Parent.Security.StationRange)
 local ScaleRoller = require(script.Parent.Parent.Internal.ScaleRoller)
@@ -91,7 +95,7 @@ local function findBand(totalPoints: number): any?
 	return nil
 end
 
-local function getWeights(totalPoints: number, luckShift: number): { number }
+local function getWeights(totalPoints: number, luckShift: number, luckMultiplier: number): { number }
 	local band = findBand(totalPoints)
 	assert(band ~= nil, "Tổng điểm luôn nằm trong một khoảng khi công thức hợp lệ")
 
@@ -100,6 +104,9 @@ local function getWeights(totalPoints: number, luckShift: number): { number }
 		for i, weight in weights do
 			weights[i] = weight * (1 + luckShift) ^ (i - 1)
 		end
+	end
+	for i = 2, #weights do
+		weights[i] *= luckMultiplier
 	end
 	return weights
 end
@@ -119,8 +126,8 @@ end
 
 -- Roll độ hiếm theo trọng số của khoảng điểm. Nếu có buff may mắn (F3.4),
 -- nhân trọng số độ hiếm i với (1 + luckShift)^(i - 1) rồi mới roll.
-local function rollRarity(totalPoints: number, luckShift: number): string
-	local weights = getWeights(totalPoints, luckShift)
+local function rollRarity(totalPoints: number, luckShift: number, luckMultiplier: number): string
+	local weights = getWeights(totalPoints, luckShift, luckMultiplier)
 	local totalWeight = sumWeights(weights)
 
 	-- Weighted roll: cộng dồn trọng số rồi rơi vào ô tương ứng.
@@ -172,7 +179,8 @@ function FurnaceService.Smelt(player: Player, ores: any): (boolean, string?, any
 		return false, "NotEnoughOres", nil
 	end
 
-	local rarity = rollRarity(totalPoints, getLuckShift(player, data))
+	local luckMultiplier = GamePassService.GetLuckMultiplier(player)
+	local rarity = rollRarity(totalPoints, getLuckShift(player, data), luckMultiplier)
 	local weaponType = rollWeaponType(rarity)
 	local scale = ScaleRoller.Roll(rng)
 
@@ -218,7 +226,7 @@ function FurnaceService.Smelt(player: Player, ores: any): (boolean, string?, any
 	local summary = {
 		Id = weapon.Id,
 		Rarity = rarity,
-		WeaponType = weaponType.DisplayName,
+		WeaponType = WeaponDisplayName.Get(rarity, weaponType.Id, nil),
 		WeaponTypeId = weaponType.Id,
 		Scale = scale,
 		Value = weapon.Value,
@@ -239,7 +247,8 @@ function FurnaceService.GetOdds(player: Player, ores: any): (boolean, string?, {
 	if not hasEnoughOres(data, ores) then
 		return false, "NotEnoughOres", nil
 	end
-	local weights = getWeights(totalPoints, getLuckShift(player, data))
+	local luckMultiplier = GamePassService.GetLuckMultiplier(player)
+	local weights = getWeights(totalPoints, getLuckShift(player, data), luckMultiplier)
 	local totalWeight = sumWeights(weights)
 	local odds: { SmeltOdd } = {}
 	for i, weight in weights do
@@ -298,6 +307,9 @@ local function onRequestSmelt(player: Player, ores: any)
 	local ok, reason, weapon = FurnaceService.Smelt(player, ores)
 	if notifySmeltResult ~= nil then
 		notifySmeltResult:FireClient(player, ok, reason, weapon)
+	end
+	if ok then
+		TutorialService.Report(player, TutorialConfig.Events.Smelted)
 	end
 end
 

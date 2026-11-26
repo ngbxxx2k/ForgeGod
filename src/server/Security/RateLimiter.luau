@@ -16,6 +16,10 @@ local KEY_LIMITS: { [string]: { MaxRequests: number, WindowSeconds: number } } =
 	ForgeStance = { MaxRequests = 6, WindowSeconds = 2 },
 	ShopBuy = { MaxRequests = 30, WindowSeconds = 5 },
 	SmeltOdds = { MaxRequests = 20, WindowSeconds = 5 },
+	Dig = { MaxRequests = 4, WindowSeconds = 2 },
+	Spin = { MaxRequests = 3, WindowSeconds = 2 },
+	PremiumPurchase = { MaxRequests = 5, WindowSeconds = 5 },
+	IndexClaim = { MaxRequests = 5, WindowSeconds = 2 },
 }
 
 local RateLimiter = {}
@@ -24,6 +28,7 @@ local isInitialized = false
 
 -- Lịch sử dấu thời gian: [player] -> [key] -> danh sách os.clock() của các lần gọi.
 local history: { [Player]: { [string]: { number } } } = {}
+local lastAcceptedAt: { [Player]: { [string]: number } } = {}
 
 -- Kiểm tra và ghi nhận một lần gọi. Trả về false nếu vượt giới hạn.
 function RateLimiter.Check(player: Player, key: string): boolean
@@ -65,9 +70,25 @@ function RateLimiter.Check(player: Player, key: string): boolean
 	return true
 end
 
+function RateLimiter.CheckInterval(player: Player, key: string, minInterval: number): boolean
+	local byPlayer = lastAcceptedAt[player]
+	if byPlayer == nil then
+		byPlayer = {}
+		lastAcceptedAt[player] = byPlayer
+	end
+	local now = os.clock()
+	local last = byPlayer[key]
+	if last ~= nil and now - last < minInterval then
+		return false
+	end
+	byPlayer[key] = now
+	return true
+end
+
 -- Xoá state khi người chơi rời để không rò rỉ bộ nhớ.
 local function handlePlayerRemoving(player: Player)
 	history[player] = nil
+	lastAcceptedAt[player] = nil
 end
 
 function RateLimiter.Init()

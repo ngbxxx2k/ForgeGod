@@ -12,12 +12,12 @@ FurnaceConfig.RecipeSize = 5
 
 -- Giá gốc vũ khí/phôi theo độ hiếm (doc mục 2, lựa chọn của người dùng).
 FurnaceConfig.BaseValues = {
-	Common = 500,
-	Uncommon = 1200,
-	Rare = 2500,
-	Epic = 20000,
-	Legendary = 200000,
-	Mythic = 1200000,
+	Common = 50,
+	Uncommon = 120,
+	Rare = 250,
+	Epic = 2000,
+	Legendary = 20000,
+	Mythic = 120000,
 }
 
 return FurnaceConfig

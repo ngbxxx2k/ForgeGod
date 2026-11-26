@@ -11,6 +11,7 @@ export type SmeltResult = {
 
 export type WeaponVisual = {
 	ModelName: string,
+	WeaponTypeId: string?,
 	Length: number,
 	Rotation: CFrame?,
 }

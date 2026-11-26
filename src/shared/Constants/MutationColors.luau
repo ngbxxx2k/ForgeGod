@@ -30,4 +30,9 @@ function MutationColors.Get(mutationId: string): MutationColor
 	return MutationColors.ById[mutationId] or MutationColors.Default
 end
 
+function MutationColors.GetTextHex(mutationId: string): string
+	local keypoints = MutationColors.Get(mutationId).Gradient.Keypoints
+	return "#" .. keypoints[1].Value:ToHex()
+end
+
 return MutationColors

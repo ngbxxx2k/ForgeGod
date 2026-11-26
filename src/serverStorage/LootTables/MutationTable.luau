@@ -7,8 +7,8 @@ local MutationConfig = require(sharedConfig:WaitForChild("MutationConfig"))
 
 local MutationTable = {}
 
-MutationTable.BaseChance = 0.05
-MutationTable.WeatherChance = 0.2
+MutationTable.BaseChance = 0.01
+MutationTable.WeatherChance = 0.05
 
 MutationTable.WeightByRarity = {
 	Common = 40,

@@ -1,5 +1,6 @@
 --!strict
 
+local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
@@ -310,6 +311,10 @@ function ForgeResultFx.Play(styleId: string)
 	playSound(style.SoundName)
 end
 
+function ForgeResultFx.PlaySound(soundName: string)
+	playSound(soundName)
+end
+
 function ForgeResultFx.PlayTick(soundName: string, minInterval: number)
 	local now = os.clock()
 	if now - lastTickAt < minInterval then
@@ -381,10 +386,23 @@ function ForgeResultFx.StopAll()
 	end
 end
 
+local function preloadSounds(folder: Instance)
+	task.spawn(function()
+		local ok, err = pcall(ContentProvider.PreloadAsync, ContentProvider, folder:GetChildren())
+		if not ok then
+			warn("[ForgeResultFx] Sound preload failed:", err)
+		end
+	end)
+end
+
 function ForgeResultFx.Bind(newTargets: Targets)
 	targets = newTargets
 	bodyRestPosition = newTargets.Body.Position
-	soundsFolder = ReplicatedStorage:WaitForChild("Assets"):WaitForChild(SOUNDS_FOLDER_NAME)
+	local folder = ReplicatedStorage:WaitForChild("Assets"):WaitForChild(SOUNDS_FOLDER_NAME)
+	if soundsFolder ~= folder then
+		preloadSounds(folder)
+	end
+	soundsFolder = folder
 end
 
 return ForgeResultFx

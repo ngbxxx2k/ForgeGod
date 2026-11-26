@@ -41,10 +41,10 @@ function ModelViewport.Clear(viewport: ViewportFrame)
 	end
 end
 
-function ModelViewport.Show(viewport: ViewportFrame, source: Model?)
+function ModelViewport.Show(viewport: ViewportFrame, source: Model?): Model?
 	ModelViewport.Clear(viewport)
 	if source == nil then
-		return
+		return nil
 	end
 	local clone = prepareClone(source)
 	clone:PivotTo(CFrame.identity)
@@ -54,6 +54,7 @@ function ModelViewport.Show(viewport: ViewportFrame, source: Model?)
 	local focus = boxCFrame.Position
 	camera.CFrame = CFrame.lookAt(focus + VIEW_DIRECTION * distance, focus)
 	clone.Parent = viewport
+	return clone
 end
 
 return ModelViewport

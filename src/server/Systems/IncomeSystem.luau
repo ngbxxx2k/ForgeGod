@@ -11,6 +11,7 @@ local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local DataTemplate = require(script.Parent.Parent.Data.DataTemplate)
 local LeaderboardService = require(script.Parent.Parent.Data.LeaderboardService)
+local GamePassService = require(script.Parent.Parent.Services.GamePassService)
 
 local IncomeSystem = {}
 
@@ -33,7 +34,7 @@ local function payPlayer(player: Player, elapsed: number)
 	if data == nil then
 		return
 	end
-	local perSecond = getLoadoutIncome(data)
+	local perSecond = getLoadoutIncome(data) * GamePassService.GetMoneyMultiplier(player)
 	LeaderboardService.SetIncome(player, perSecond)
 	local amount = math.floor(perSecond * elapsed)
 	if amount > 0 then

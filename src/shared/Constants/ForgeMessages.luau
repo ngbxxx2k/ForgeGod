@@ -2,6 +2,10 @@
 
 local ForgeMessages = {
 	LevelFormat = "+%d",
+	LevelOfMaxFormat = "+%d / %d",
+	MaxLevelFormat = "+%d MAX",
+	MaxLevelText = "MAX LEVEL",
+	MaxLevelDetailText = "This weapon can't be forged further",
 	MoneyFormat = "$%s",
 	PercentFormat = "%.1f%%",
 	PointsFormat = "%d / %d",
@@ -44,6 +48,7 @@ ForgeMessages.Reasons = {
 	WeaponNotFound = "Weapon not found.",
 	WeaponLocked = "This weapon is locked.",
 	InvalidRequest = "Invalid request.",
+	TutorialLocked = "Leave the anvil to continue the tutorial.",
 }
 
 return ForgeMessages

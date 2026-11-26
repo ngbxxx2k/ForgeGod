@@ -62,6 +62,10 @@ ForgeStrikeConfig.WeaponScaleTolerance = 0.01
 
 -- Model vũ khí đặt trên đe: ReplicatedStorage.Assets.Models/<WeaponType>, không có thì dùng model test
 ForgeStrikeConfig.WeaponModelsFolderName = "Models"
+ForgeStrikeConfig.WeaponLibraryFolderName = "Weapons"
+ForgeStrikeConfig.ShapeStageAttribute = "ShapeStage"
+-- Thời gian tối đa (giây) chờ tải mesh/texture của hình dạng mới trước khi đổi model trên đe
+ForgeStrikeConfig.ModelPreloadTimeout = 3
 -- PLACEHOLDER: mốc đổi model khi rèn (test): dạng >= MinShapeStage dùng ModelName trong World
 ForgeStrikeConfig.DefaultShapeStage = 1
 ForgeStrikeConfig.TestWeaponModelStages = {
@@ -159,6 +163,8 @@ ForgeStrikeConfig.OutcomePopup = {
 	-- Kích thước chữ (pixel) và độ lệch so với điểm va chạm trên mặt vũ khí (stud)
 	WidthPixels = 260,
 	HeightPixels = 64,
+	-- PLACEHOLDER: kích thước icon vật phẩm hiện phía trên chữ (pixel), ví dụ icon Talisman khi chặn vỡ
+	IconPixels = 120,
 	StudsOffset = Vector3.zero,
 	StrokeColor = Color3.new(0, 0, 0),
 	StrokeThickness = 3,

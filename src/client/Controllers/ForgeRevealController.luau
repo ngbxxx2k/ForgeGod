@@ -59,6 +59,7 @@ local ForgeRevealController = {}
 
 local isInitialized = false
 local session: Session? = nil
+local activeThunder: Sound? = nil
 
 local function isCurrent(current: Session): boolean
 	return session == current
@@ -155,17 +156,18 @@ local function playRise(current: Session): Scene?
 	return scene
 end
 
+local function playThunder(volume: number, parent: Instance, speed: number)
+	local previous = activeThunder
+	if previous and previous.Parent then
+		previous:Destroy()
+	end
+	activeThunder = RevealSound.PlayRandom(ForgeAnimationConfig.Lightning.ThunderSoundIds, volume, parent, speed)
+end
+
 local function playStrikeSound(weapon: RevealWeapon.Weapon, strike: RollSchedule.Strike)
 	local config = ForgeAnimationConfig.Lightning
-	if strike.IsFinal then
-		local speed = config.FinalPlaybackSpeed
-		RevealSound.PlayRandom(config.ZapSoundIds, config.FinalZapVolume, weapon.Model, speed)
-		RevealSound.PlayRandom(config.ThunderSoundIds, config.FinalThunderVolume, weapon.Model, speed)
-		return
-	end
-	local pitch = config.PitchStart + (config.PitchEnd - config.PitchStart) * strike.Progress
-	RevealSound.PlayRandom(config.ZapSoundIds, config.ZapVolume, weapon.Model, pitch)
-	RevealSound.PlayRandom(config.ThunderSoundIds, config.ThunderVolume, weapon.Model, pitch)
+	local volume = if strike.IsFinal then config.FinalThunderVolume else config.ThunderVolume
+	playThunder(volume, weapon.Model, strike.PlaybackSpeed)
 end
 
 local function playStrike(current: Session, scene: Scene, strike: RollSchedule.Strike)

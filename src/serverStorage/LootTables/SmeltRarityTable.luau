@@ -16,11 +16,11 @@ local SmeltRarityTable = {}
 
 -- Bảng tỉ lệ mẫu của doc mục 3 (tổng điểm của đúng 5 quặng: 5 đến 50).
 SmeltRarityTable.Bands = {
-	{ MinPoints = 5, MaxPoints = 14, Weights = { 75, 20, 5, 0, 0, 0 } },
-	{ MinPoints = 15, MaxPoints = 24, Weights = { 45, 30, 23, 2, 0, 0 } },
-	{ MinPoints = 25, MaxPoints = 34, Weights = { 20, 30, 35, 12, 2.5, 0.5 } },
-	{ MinPoints = 35, MaxPoints = 44, Weights = { 5, 20, 40, 25, 8, 2 } },
-	{ MinPoints = 45, MaxPoints = 50, Weights = { 0, 10, 30, 40, 15, 5 } },
+	{ MinPoints = 5, MaxPoints = 14, Weights = { 60, 27, 10, 2.9, 0.1, 0 } },
+	{ MinPoints = 15, MaxPoints = 24, Weights = { 35, 32, 25, 6.5, 1.3, 0.2 } },
+	{ MinPoints = 25, MaxPoints = 34, Weights = { 15, 27, 35, 17, 5, 1 } },
+	{ MinPoints = 35, MaxPoints = 44, Weights = { 4, 15, 36, 30, 12, 3 } },
+	{ MinPoints = 45, MaxPoints = 50, Weights = { 0, 6, 26, 40, 21, 7 } },
 } :: { Band }
 
 return SmeltRarityTable

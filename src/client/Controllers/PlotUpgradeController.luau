@@ -36,11 +36,8 @@ local function getSlots(): number
 	return slots or LoadoutConfig.DefaultSlots
 end
 
-local function getRobuxText(productId: number): string
-	local price = robuxPrices[productId]
-	if price == nil then
-		return PlotUpgradeMessages.RobuxUnknownPrice
-	end
+local function getRobuxText(step: PlotUpgradeConfig.UpgradeStep): string
+	local price = robuxPrices[step.ProductId] or step.RobuxPrice
 	return string.format(PlotUpgradeMessages.RobuxPriceFormat, NumberFormat.WithCommas(price))
 end
 
@@ -57,7 +54,7 @@ local function render()
 		CoinText = if step
 			then string.format(PlotUpgradeMessages.CoinPriceFormat, NumberFormat.Abbreviate(step.CoinPrice))
 			else "",
-		RobuxText = if step then getRobuxText(step.ProductId) else "",
+		RobuxText = if step then getRobuxText(step) else "",
 	})
 end
 
@@ -154,11 +151,11 @@ end
 
 local function onResult(ok: any, reason: any)
 	if ok == true then
-		Toast.Show(PlotUpgradeMessages.NotificationTitle, PlotUpgradeMessages.SuccessText)
+		Toast.Success(PlotUpgradeMessages.SuccessText)
 		return
 	end
 	local text = if type(reason) == "string" then PlotUpgradeMessages.Reasons[reason] else nil
-	Toast.Show(PlotUpgradeMessages.NotificationTitle, text or PlotUpgradeMessages.UnknownError)
+	Toast.Error(text or PlotUpgradeMessages.UnknownError)
 end
 
 function PlotUpgradeController.Init()

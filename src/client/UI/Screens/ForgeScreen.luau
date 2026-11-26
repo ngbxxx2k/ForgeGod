@@ -9,8 +9,6 @@ local ForgeConfig = require(ReplicatedStorage.Shared.Config.ForgeConfig)
 local ForgeResultFxConfig = require(ReplicatedStorage.Shared.Config.ForgeResultFxConfig)
 local ForgeOutcomes = require(ReplicatedStorage.Shared.Constants.ForgeOutcomes)
 local ForgeMessages = require(ReplicatedStorage.Shared.Constants.ForgeMessages)
-local WeatherMessages = require(ReplicatedStorage.Shared.Constants.WeatherMessages)
-local BackpackMessages = require(ReplicatedStorage.Shared.Constants.BackpackMessages)
 local NumberFormat = require(ReplicatedStorage.Shared.Utils.NumberFormat)
 local UiSound = require(script.Parent.Parent.Parent.Effects.UiSound)
 local ForgeResultFx = require(script.Parent.Parent.Parent.Effects.ForgeResultFx)
@@ -18,6 +16,7 @@ local OpenAnimation = require(script.Parent.Parent.Components.OpenAnimation)
 local HudSlide = require(script.Parent.Parent.Components.HudSlide)
 local ScreenRegistry = require(script.Parent.Parent.Components.ScreenRegistry)
 local StatAnimation = require(script.Parent.Parent.Components.StatAnimation)
+local MutationLabel = require(script.Parent.Parent.Components.MutationLabel)
 local ForgeWheel = require(script.Parent.Parent.Components.ForgeWheel)
 local WheelNeedle = require(script.Parent.Parent.Components.WheelNeedle)
 
@@ -29,6 +28,7 @@ local PIP_DIM_COLOR = Color3.fromRGB(95, 95, 95)
 local PIP_POP_SCALE = 1.5
 local LEVEL_UP_POP_SCALE = 1.45
 local MESSAGE_COLOR = Color3.fromRGB(235, 225, 210)
+local INFO_TEXT_COLOR = Color3.new(1, 1, 1)
 local DETAIL_POP_SCALE = 1.12
 local PIP_TWEEN_INFO = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local ROW_TWEEN_INFO = TweenInfo.new(ForgeResultFxConfig.RowFadeTime, Enum.EasingStyle.Quad)
@@ -48,6 +48,7 @@ export type ForgeState = {
 	WeaponName: string,
 	Mutation: string?,
 	Level: number,
+	MaxLevel: number,
 	Value: number,
 	ForgePoints: number,
 	MaxForgePoints: number,
@@ -99,16 +100,13 @@ local function formatCoins(value: number): string
 	return string.format(ForgeMessages.CoinsFormat, NumberFormat.Compact(value))
 end
 
-local function formatLevel(value: number): string
-	return string.format(ForgeMessages.LevelFormat, value)
-end
-
-local function formatMutation(mutation: string?): string
-	if mutation == nil then
-		return BackpackMessages.NoMutationText
+local function levelFormatter(maxLevel: number): (number) -> string
+	return function(value: number): string
+		if value >= maxLevel then
+			return string.format(ForgeMessages.MaxLevelFormat, value)
+		end
+		return string.format(ForgeMessages.LevelOfMaxFormat, value, maxLevel)
 	end
-	local mutationName = WeatherMessages.MutationNames[mutation] or mutation
-	return string.format(BackpackMessages.MutationFormat, mutationName)
 end
 
 local function setPip(pip: Frame, isLit: boolean, isAnimated: boolean)
@@ -134,9 +132,10 @@ local function renderPips(points: number, isAnimated: boolean)
 	litPips = points
 end
 
-local function renderLevel(target: Elements, level: number, isAnimated: boolean)
+local function renderLevel(target: Elements, level: number, maxLevel: number, isAnimated: boolean)
 	local previous = shownLevel
 	shownLevel = level
+	local formatLevel = levelFormatter(maxLevel)
 	if not isAnimated or previous == nil then
 		StatAnimation.SetNumber(target.LevelLabel, level, formatLevel)
 		return
@@ -154,7 +153,7 @@ function ForgeScreen.Render(state: ForgeState, isAnimated: boolean)
 		return
 	end
 	target.WeaponName.Text = state.WeaponName
-	target.MutationLabel.Text = formatMutation(state.Mutation)
+	MutationLabel.Apply(target.MutationLabel, state.Mutation)
 	local points = string.format(ForgeMessages.PointsFormat, state.ForgePoints, state.MaxForgePoints)
 	if isAnimated and target.PointsLabel.Text ~= points then
 		StatAnimation.Pop(target.PointsLabel)
@@ -165,7 +164,7 @@ function ForgeScreen.Render(state: ForgeState, isAnimated: boolean)
 	else
 		StatAnimation.SetNumber(target.ValueLabel, state.Value, formatCoins)
 	end
-	renderLevel(target, state.Level, isAnimated)
+	renderLevel(target, state.Level, state.MaxLevel, isAnimated)
 	renderPips(state.ForgePoints, isAnimated)
 end
 
@@ -313,6 +312,25 @@ function ForgeScreen.IsOverExitButton(screenPosition: Vector2): boolean
 	return offset.X >= 0 and offset.Y >= 0 and offset.X <= size.X and offset.Y <= size.Y
 end
 
+function ForgeScreen.GetExitButtonViewportPoint(): Vector2?
+	local gui, button = surfaceGui, exitButton
+	local part = gui and gui.Adornee
+	if gui == nil or button == nil or part == nil or not part:IsA("BasePart") then
+		return nil
+	end
+	if gui.AbsoluteSize.X <= 0 or gui.AbsoluteSize.Y <= 0 then
+		return nil
+	end
+	local center = button.AbsolutePosition + button.AbsoluteSize / 2
+	local u = center.X / gui.AbsoluteSize.X
+	local v = center.Y / gui.AbsoluteSize.Y
+	local half = part.Size / 2
+	local localPoint = Vector3.new(half.X - u * part.Size.X, half.Y - v * part.Size.Y, -half.Z)
+	local world = part.CFrame:PointToWorldSpace(localPoint)
+	local screen, isVisible = Workspace.CurrentCamera:WorldToViewportPoint(world)
+	return if isVisible then Vector2.new(screen.X, screen.Y) else nil
+end
+
 local function paintFill(row: Instance, color: Color3): Frame?
 	local track = row:FindFirstChild("Track")
 	local fill = track and track:FindFirstChild("Fill")
@@ -392,6 +410,14 @@ local function bindWheel(body: Frame): (TextLabel, TextLabel)
 	return findTyped(hub, "ResultLabel", "TextLabel"), findTyped(hub, "ResultDetail", "TextLabel")
 end
 
+local function whitenLabel(label: TextLabel)
+	label.TextColor3 = INFO_TEXT_COLOR
+	local gradient = label:FindFirstChildOfClass("UIGradient")
+	if gradient then
+		gradient.Enabled = false
+	end
+end
+
 local function bindExitButton(button: GuiButton)
 	exitButton = button
 	button.Activated:Connect(function()
@@ -437,7 +463,7 @@ function ForgeScreen.Init()
 	local pipRow = body:WaitForChild("PipRow")
 	buildRows(rateList, findTyped(rateList, "RateTemplate", "Frame"))
 	buildPips(pipRow, findTyped(pipRow, "PipTemplate", "Frame"))
-	elements = {
+	local built: Elements = {
 		Panel = panel,
 		Body = body,
 		WeaponName = findTyped(body, "WeaponName", "TextLabel"),
@@ -449,6 +475,9 @@ function ForgeScreen.Init()
 		ResultLabel = resultLabel,
 		ResultDetail = resultDetail,
 	}
+	elements = built
+	whitenLabel(built.WeaponName)
+	whitenLabel(built.MutationLabel)
 	panel.Visible = false
 	registerPanel(panel)
 	ForgeScreen.ResetResult()

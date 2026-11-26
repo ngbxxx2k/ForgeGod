@@ -4,11 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local sharedConfig = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config")
 local BuffConfig = require(sharedConfig:WaitForChild("BuffConfig"))
 local LoadoutConfig = require(sharedConfig:WaitForChild("LoadoutConfig"))
+local TutorialConfig = require(sharedConfig:WaitForChild("TutorialConfig"))
+local WeaponItemConfig = require(sharedConfig:WaitForChild("WeaponItemConfig"))
 
 local DataTemplate = {}
 
 -- Tăng số này khi đổi cấu trúc dữ liệu, rồi thêm hàm migrate trong DataService
-DataTemplate.SCHEMA_VERSION = 4
+DataTemplate.SCHEMA_VERSION = 8
 
 DataTemplate.Limits = {
 	DefaultItemSlots = 50, -- kho vật phẩm (chỉ đếm vũ khí, quặng và buff không tính)
@@ -19,6 +21,7 @@ DataTemplate.Limits = {
 	MinShapeStage = 1, -- dạng ban đầu của vũ khí
 	MaxShapeStage = 5, -- hiện có 5 dạng
 	MaxProcessedPurchases = 50, -- số mã giao dịch Robux gần nhất giữ lại để chống cộng trùng
+	MaxCoins = 1e300, -- trần tiền và tổng tiền kiếm được, tránh tràn số thành inf (DataStore không lưu được inf)
 }
 
 DataTemplate.Rarities = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
@@ -47,14 +50,16 @@ DataTemplate.Items = {
 	DarkMoonstone = { Kind = "Ore" },
 	Mithril = { Kind = "Ore" },
 	GodsCore = { Kind = "Ore" },
-
-	-- Đá tẩy mutation
-	MutationEraser = { Kind = "Instant" },
 } :: { [string]: { Kind: string, Duration: number? } }
 
 -- Vật phẩm buff: thêm hoặc sửa trong shared/Config/BuffConfig
 for _, buff in BuffConfig.Buffs do
 	DataTemplate.Items[buff.Id] = { Kind = buff.Kind, Duration = buff.Duration }
+end
+
+-- Vật phẩm dùng ngay lên vũ khí (đá tẩy mutation, hồi sinh): shared/Config/WeaponItemConfig
+for _, item in WeaponItemConfig.Items do
+	DataTemplate.Items[item.Id] = { Kind = "Instant" }
 end
 
 -- Dữ liệu mặc định của người chơi mới.
@@ -87,8 +92,56 @@ DataTemplate.Default = {
 		Loadout = DataTemplate.Limits.DefaultLoadoutSlots, -- = số trụ của plot, nâng qua bảng Upgrade Plot
 	},
 
+	-- Bậc dụng cụ đào đang trang bị (1..7, phải nằm trong OwnedDigTiers): quyết định chỉ số khi đào
+	DigTools = {
+		Detector = 1,
+		Shovel = 1,
+	},
+
+	-- Các bậc máy dò / xẻng đã sở hữu: mảng chỉ số bậc (1..7), luôn có bậc 1; mua bậc nào mở khoá bậc đó
+	OwnedDigTiers = {
+		Detector = { 1 },
+		Shovel = { 1 },
+	},
+
+	-- Các bậc đe / búa đã sở hữu: mảng chỉ số bậc (1..7), luôn có bậc 1; mua bậc nào mở khoá bậc đó.
+	-- Bậc có may mắn cao nhất trong mảng quyết định may mắn khi rèn
+	OwnedForgeTiers = {
+		Anvil = { 1 },
+		Hammer = { 1 },
+	},
+
+	-- Bậc texture đe / búa đang dùng (<= bậc sở hữu): chỉ đổi hình, không đổi may mắn
+	ForgeSkins = {
+		Anvil = 1,
+		Hammer = 1,
+	},
+
+	-- Bộ sưu tập Index: [IndexKey "Mutation|WeaponType|ShapeStage"] = true khi từng sở hữu
+	Index = {} :: { [string]: boolean },
+
+	-- Quà Index đã nhận: ["Tab|Rarity"] = true khi đã bấm CLAIM bộ sưu tập đủ của bậc đó trong tab đó
+	IndexRewards = {} :: { [string]: boolean },
+
+	-- Vòng quay may mắn: số lượt đã có (mua/trúng) và thời điểm dùng lượt free gần nhất (epoch, giây)
+	Spin = {
+		Tokens = 0,
+		LastFreeAt = 0,
+	},
+
+	-- Pass được người khác tặng (mua qua Developer Product tặng quà): [passId] = true, tác dụng như Game Pass
+	GiftedPasses = {} :: { [string]: boolean },
+
 	-- Mã giao dịch Robux (PurchaseId) đã cộng quà, mới nhất ở cuối, tối đa MaxProcessedPurchases
 	ProcessedPurchases = {} :: { string },
+
+	-- Hướng dẫn người chơi mới: bước đang làm (Id trong TutorialConfig.Steps), số quặng đã đào trong bước
+	-- DigOres, và cờ đã hoàn thành (true thì không hướng dẫn nữa)
+	Tutorial = {
+		StepId = TutorialConfig.FirstStepId,
+		DigCount = 0,
+		IsComplete = false,
+	},
 
 	Stats = {
 		TotalForges = 0,

@@ -10,6 +10,7 @@ local ModelViewport = require(script.Parent.Parent.Components.ModelViewport)
 local OpenAnimation = require(script.Parent.Parent.Components.OpenAnimation)
 local RarityGradient = require(script.Parent.Parent.Components.RarityGradient)
 local ScreenRegistry = require(script.Parent.Parent.Components.ScreenRegistry)
+local ScrollCanvas = require(script.Parent.Parent.Components.ScrollCanvas)
 local UiSound = require(script.Parent.Parent.Parent.Effects.UiSound)
 
 local GUI_NAME = "ForgeUpgradeGui"
@@ -29,6 +30,8 @@ export type UpgradeCard = {
 	CoinText: string,
 	RobuxText: string?,
 	PreviewModel: Model?,
+	PreviewTexture: string?,
+	BaseTextures: { string }?,
 }
 
 local ForgeUpgradeScreen = {}
@@ -63,17 +66,29 @@ local function bindBuyButton(card: Frame, path: { string }, cardId: string, curr
 	end)
 end
 
+local function applyPreviewTexture(model: Model?, entry: UpgradeCard)
+	local texture, baseTextures = entry.PreviewTexture, entry.BaseTextures
+	if model == nil or texture == nil or baseTextures == nil then
+		return
+	end
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("MeshPart") and table.find(baseTextures, descendant.TextureID) then
+			descendant.TextureID = texture
+		end
+	end
+end
+
 local function fillCard(card: Frame, entry: UpgradeCard)
 	RarityGradient.Apply(card, entry.Rarity)
 	GuiPath.SetText(card, { "NameLabel" }, entry.DisplayName)
-	GuiPath.SetText(card, { "TierLabel" }, entry.Rarity)
+	GuiPath.SetVisible(card, { "TierLabel" }, false)
 	GuiPath.SetText(card, { "StatPill", "StatLabel" }, entry.StatText)
 	GuiPath.SetText(card, COIN_BUTTON_PATH, entry.CoinText)
 	GuiPath.SetText(card, ROBUX_BUTTON_PATH, entry.RobuxText or "")
 	GuiPath.SetVisible(card, ROBUX_BUTTON_PATH, entry.RobuxText ~= nil)
 	local preview = card:FindFirstChild("Preview")
 	if preview and preview:IsA("ViewportFrame") then
-		ModelViewport.Show(preview, entry.PreviewModel)
+		applyPreviewTexture(ModelViewport.Show(preview, entry.PreviewModel), entry)
 	end
 end
 
@@ -107,6 +122,24 @@ local function bindTabs(tabBar: Instance)
 	end
 end
 
+local function getTabBar(): Instance?
+	local frame = mainFrame
+	return frame and frame:FindFirstChild("TabBar")
+end
+
+local function resizeTabs(tabBar: Instance)
+	local layout = tabBar:FindFirstChildOfClass("UIListLayout")
+	local padding = if layout then layout.Padding.Scale else 0
+	local count = 0
+	for _ in tabButtons do
+		count += 1
+	end
+	local width = (1 - padding * (count - 1)) / count
+	for _, button in tabButtons do
+		button.Size = UDim2.new(width, 0, button.Size.Y.Scale, button.Size.Y.Offset)
+	end
+end
+
 local function bindCloseButton(main: Instance)
 	local closeButton = main:WaitForChild("Header"):WaitForChild("CloseButton")
 	if closeButton:IsA("GuiButton") then
@@ -114,24 +147,54 @@ local function bindCloseButton(main: Instance)
 	end
 end
 
-function ForgeUpgradeScreen.Render(entries: { UpgradeCard })
+function ForgeUpgradeScreen.Render(entries: { UpgradeCard }, isKeepingScroll: boolean?)
 	local list = cardList
 	local template = cardTemplate
 	if not list or not template then
 		warn("[ForgeUpgradeScreen] Render called before Init")
 		return
 	end
+	local scrollPosition = list.CanvasPosition
 	GuiPath.ClearChildren(list, CARD_NAME)
 	for index, entry in entries do
 		createCard(template, entry, index).Parent = list
 	end
-	list.CanvasPosition = Vector2.zero
+	list.CanvasPosition = if isKeepingScroll then scrollPosition else Vector2.zero
 end
 
 function ForgeUpgradeScreen.SelectTab(tabId: string)
 	for id, button in tabButtons do
 		styleTab(button, id == tabId)
 	end
+end
+
+function ForgeUpgradeScreen.AddTab(tabId: string, labelText: string, order: number)
+	local tabBar = getTabBar()
+	if tabBar == nil or tabButtons[tabId] ~= nil then
+		return
+	end
+	local source: GuiButton? = nil
+	for _, button in tabButtons do
+		source = button
+		break
+	end
+	if source == nil then
+		return
+	end
+	local tab = source:Clone()
+	tab.Name = tabId .. "Tab"
+	tab.LayoutOrder = order
+	tab:SetAttribute(TAB_ID_ATTRIBUTE, tabId)
+	GuiPath.SetText(tab, { "Label" }, labelText)
+	activeTabGradients[tab] = activeTabGradients[source] :: ColorSequence
+	tabButtons[tabId] = tab
+	tab.Activated:Connect(function()
+		if tabHandler then
+			tabHandler(tabId)
+		end
+	end)
+	tab.Parent = tabBar
+	resizeTabs(tabBar)
 end
 
 function ForgeUpgradeScreen.SetTabHandler(handler: (tabId: string) -> ())
@@ -182,6 +245,7 @@ function ForgeUpgradeScreen.Init()
 	mainFrame = main
 	cardList = list
 	cardTemplate = template
+	ScrollCanvas.BindHorizontalToLayout(list)
 	UiSound.WatchOpen(main)
 	OpenAnimation.Watch(main)
 	HudSlide.TrackScreen(main)

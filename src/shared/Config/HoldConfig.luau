@@ -4,6 +4,7 @@ local HoldConfig = {}
 
 HoldConfig.HandPartName = "RightHand"
 HoldConfig.GripAttachmentName = "RightGripAttachment"
+HoldConfig.WeaponGripPointName = "GripPoint"
 HoldConfig.ModelName = "HeldWeapon"
 HoldConfig.WeaponLength = 4
 HoldConfig.GripFraction = 0.12

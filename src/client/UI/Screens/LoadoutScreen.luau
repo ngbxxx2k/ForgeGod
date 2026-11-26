@@ -16,6 +16,7 @@ local LOADOUT_BUTTON_NAME = "LoadoutButton"
 local TEMPLATE_NAME = "WeaponCardTemplate"
 local CARD_NAME = "WeaponCard"
 local BORDER_NAME = "Border"
+local WEAPON_ID_ATTRIBUTE = "WeaponId"
 local HOVER_ATTRIBUTE = "HasHoverEffect"
 local HOVER_BUTTON_NAMES = { "CloseButton", "EquipBestButton", "EquipButton" }
 local EQUIPPED_BORDER_COLOR = Color3.fromRGB(120, 255, 70)
@@ -41,6 +42,8 @@ export type WeaponEntry = {
 	ButtonText: string,
 	IsEquipped: boolean,
 	Image: string?,
+	ImageRectOffset: Vector2?,
+	ImageRectSize: Vector2?,
 }
 
 export type LoadoutSummary = {
@@ -91,6 +94,7 @@ local function createCard(template: Frame, entry: WeaponEntry, order: number): F
 	card.Name = CARD_NAME
 	card.LayoutOrder = order
 	card.Visible = true
+	card:SetAttribute(WEAPON_ID_ATTRIBUTE, entry.Id)
 	local slot = card:FindFirstChild("Slot")
 	if slot and slot:IsA("GuiObject") then
 		RarityGradient.Apply(slot, entry.Rarity)
@@ -100,6 +104,7 @@ local function createCard(template: Frame, entry: WeaponEntry, order: number): F
 	GuiPath.SetText(card, { "RarityLabel" }, string.upper(entry.Rarity))
 	GuiPath.SetText(card, { "IncomeLabel" }, entry.IncomeText)
 	GuiPath.SetImage(card, { "Slot", "WeaponImage" }, entry.Image)
+	GuiPath.SetImageRect(card, { "Slot", "WeaponImage" }, entry.ImageRectOffset, entry.ImageRectSize)
 	local button = card:FindFirstChild("EquipButton")
 	if button and button:IsA("GuiButton") then
 		styleEquipButton(button, entry)
@@ -180,6 +185,20 @@ end
 
 function LoadoutScreen.IsVisible(): boolean
 	return container ~= nil and container.Visible
+end
+
+function LoadoutScreen.FindEquipButton(weaponId: string): GuiButton?
+	local list = weaponList
+	if list == nil then
+		return nil
+	end
+	for _, card in list:GetChildren() do
+		if card.Name == CARD_NAME and card:GetAttribute(WEAPON_ID_ATTRIBUTE) == weaponId then
+			local button = card:FindFirstChild("EquipButton")
+			return if button and button:IsA("GuiButton") then button else nil
+		end
+	end
+	return nil
 end
 
 function LoadoutScreen.SetEquipHandler(handler: EquipHandler)

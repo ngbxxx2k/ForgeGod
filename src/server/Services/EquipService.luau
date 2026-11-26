@@ -5,11 +5,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local shared = ReplicatedStorage:WaitForChild("Shared")
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
 local WeaponIncome = require(shared:WaitForChild("Utils"):WaitForChild("WeaponIncome"))
+local TutorialConfig = require(shared:WaitForChild("Config"):WaitForChild("TutorialConfig"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local DataTemplate = require(script.Parent.Parent.Data.DataTemplate)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
+local TutorialService = require(script.Parent.TutorialService)
 
 local REMOTES_FOLDER_NAME = "Remotes"
 local RATE_LIMIT_KEY = "Equip"
@@ -47,6 +49,9 @@ local function onRequestEquip(player: Player, weaponId: any)
 	end
 	local ok, equipReason = DataActions.TryEquipWeapon(player, weaponId)
 	sendResult(player, ok, equipReason)
+	if ok then
+		TutorialService.Report(player, TutorialConfig.Events.WeaponEquipped)
+	end
 end
 
 local function onRequestUnequip(player: Player, weaponId: any)
@@ -85,6 +90,10 @@ local function onRequestEquipBest(player: Player)
 	local canRun, reason = canHandle(player, "")
 	if not canRun then
 		sendResult(player, false, reason)
+		return
+	end
+	if TutorialService.IsEquipBestBlocked(player) then
+		sendResult(player, false, "TutorialUseEquip")
 		return
 	end
 	local data = DataService.GetData(player)

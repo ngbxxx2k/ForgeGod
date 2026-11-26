@@ -16,6 +16,7 @@ WeaponWeightConfig.BaseWeights = {
 	Spear = 4,
 	Dagger = 1,
 	Hammer = 8,
+	Scythe = 4,
 } :: { [string]: number }
 
 -- Cân nặng gốc khi họ vũ khí không có trong bảng trên

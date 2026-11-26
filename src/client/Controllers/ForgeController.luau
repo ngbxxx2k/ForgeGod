@@ -4,7 +4,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
-local ForgeAnimationConfig = require(ReplicatedStorage.Shared.Config.ForgeAnimationConfig)
 local ForgeConfig = require(ReplicatedStorage.Shared.Config.ForgeConfig)
 local ForgeStrikeConfig = require(ReplicatedStorage.Shared.Config.ForgeStrikeConfig)
 local ForgeWheelConfig = require(ReplicatedStorage.Shared.Config.ForgeWheelConfig)
@@ -13,19 +12,23 @@ local ForgeMessages = require(ReplicatedStorage.Shared.Constants.ForgeMessages)
 local PlayerStateTypes = require(ReplicatedStorage.Shared.Types.PlayerStateTypes)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local WeaponIncome = require(ReplicatedStorage.Shared.Utils.WeaponIncome)
+local WeaponMaxLevel = require(ReplicatedStorage.Shared.Utils.WeaponMaxLevel)
 local PlotStations = require(ReplicatedStorage.Shared.Utils.PlotStations)
 local ForgeScreen = require(script.Parent.Parent.UI.Screens.ForgeScreen)
 local Toast = require(script.Parent.Parent.UI.Components.Toast)
 local ForgeBreakFx = require(script.Parent.Parent.Effects.ForgeBreakFx)
 local ForgeFrenzyFx = require(script.Parent.Parent.Effects.ForgeFrenzyFx)
+local ForgeHammerSkin = require(script.Parent.Parent.Effects.ForgeHammerSkin)
 local ForgeMutationFx = require(script.Parent.Parent.Effects.ForgeMutationFx)
 local ForgeStrikeFx = require(script.Parent.Parent.Effects.ForgeStrikeFx)
 local ForgeStation = require(script.Parent.Parent.Effects.ForgeStation)
+local WeaponAssetPreloader = require(script.Parent.Parent.Effects.WeaponAssetPreloader)
 local WeaponModels = require(script.Parent.Parent.Effects.WeaponModels)
 local ForgePlayback = require(script.Parent.ForgePlayback)
 local ForgeStance = require(script.Parent.ForgeStance)
 local InventoryItems = require(script.Parent.InventoryItems)
 local PlayerStateController = require(script.Parent.PlayerStateController)
+local TutorialState = require(script.Parent.TutorialState)
 
 type WeaponSummary = PlayerStateTypes.WeaponSummary
 
@@ -34,6 +37,7 @@ type Beat = {
 	EndsAt: number,
 	IsResolved: boolean,
 	FrenzyEndsAt: number?,
+	HitAt: number,
 }
 
 local REMOTES_FOLDER_NAME = "Remotes"
@@ -54,6 +58,7 @@ local chancesWeaponId: string? = nil
 local latestChances: { [string]: number } = {}
 local currentBeat: Beat? = nil
 local placedTemplate: Model? = nil
+local modelToken = 0
 local beatCounter = 0
 local staleResponses = 0
 local frenzyEndsAt = 0
@@ -78,14 +83,21 @@ local function getActiveWeapon(): WeaponSummary?
 	return nil
 end
 
-local function resolveName(result: any): string
+local function resolveName(result: any): (string, number)
 	local weapon = getActiveWeapon()
 	if weapon == nil then
-		return ForgeMessages.NoWeaponName
+		return ForgeMessages.NoWeaponName, WeaponMaxLevel.Get(nil)
 	end
 	local summary = table.clone(weapon)
 	summary.State = if type(result.State) == "string" then result.State else weapon.State
-	return InventoryItems.GetWeaponName(summary)
+	if type(result.ShapeStage) == "number" then
+		summary.ShapeStage = result.ShapeStage
+	end
+	return InventoryItems.GetWeaponName(summary), WeaponMaxLevel.Get(weapon.Rarity)
+end
+
+local function isAtMaxLevel(weapon: WeaponSummary): boolean
+	return WeaponMaxLevel.IsReached(weapon.Rarity, weapon.Level) and os.clock() >= frenzyEndsAt
 end
 
 local function requestChances()
@@ -102,6 +114,7 @@ local function render(isAnimated: boolean)
 		ForgeScreen.Render({
 			WeaponName = ForgeMessages.NoWeaponName,
 			Level = 0,
+			MaxLevel = WeaponMaxLevel.Get(nil),
 			Value = 0,
 			ForgePoints = 0,
 			MaxForgePoints = ForgeConfig.MaxForgePoints,
@@ -115,10 +128,14 @@ local function render(isAnimated: boolean)
 		WeaponName = InventoryItems.GetWeaponName(weapon),
 		Mutation = weapon.Mutation,
 		Level = weapon.Level,
+		MaxLevel = WeaponMaxLevel.Get(weapon.Rarity),
 		Value = WeaponIncome.PerSecond(weapon.Value, weapon.Mutation, false),
 		ForgePoints = weapon.ForgePoints,
 		MaxForgePoints = ForgeConfig.MaxForgePoints,
 	}, isAnimated)
+	if currentBeat == nil and isAtMaxLevel(weapon) then
+		ForgeScreen.ShowMessage(ForgeMessages.MaxLevelText, ForgeMessages.MaxLevelDetailText)
+	end
 end
 
 local function showNextChances(beatId: number)
@@ -172,7 +189,7 @@ local function handleWeaponBroken(weaponId: string)
 	ForgeBreakFx.Shatter(ForgeStrikeFx.GetWeapon())
 	placedTemplate = nil
 	ForgeStrikeFx.SetForgeWeapon(nil)
-	Toast.Show(ForgeMessages.NotificationTitle, ForgeMessages.WeaponBrokeText)
+	Toast.Error(ForgeMessages.WeaponBrokeText)
 	task.delay(ForgeConfig.BreakReturnDelay, function()
 		local handler = weaponLostHandler
 		if isOpen and isWeaponLost and selectedWeaponId == weaponId and handler then
@@ -181,16 +198,30 @@ local function handleWeaponBroken(weaponId: string)
 	end)
 end
 
+local function showWeaponModel(template: Model?, isAnnounced: boolean)
+	ForgeStrikeFx.SetForgeWeapon(template)
+	if isAnnounced then
+		ForgeStrikeFx.Hit()
+	end
+end
+
 local function updateWeaponModel(shapeStage: number, isAnnounced: boolean)
 	local template = WeaponModels.Find(getActiveWeapon(), shapeStage)
 	if template == placedTemplate then
 		return
 	end
 	placedTemplate = template
-	ForgeStrikeFx.SetForgeWeapon(template)
-	if isAnnounced then
-		ForgeStrikeFx.Hit()
+	modelToken += 1
+	if template == nil or not isAnnounced then
+		showWeaponModel(template, isAnnounced)
+		return
 	end
+	local token = modelToken
+	WeaponAssetPreloader.WhenReady(template, function()
+		if isOpen and token == modelToken and not isWeaponLost then
+			showWeaponModel(template, isAnnounced)
+		end
+	end)
 end
 
 local function onLanded(beat: Beat, result: any)
@@ -208,7 +239,7 @@ local function onLanded(beat: Beat, result: any)
 		ForgeFrenzyFx.Start(frenzyEndsAt)
 	end
 	if result.IsProtected == true then
-		Toast.Show(ForgeMessages.NotificationTitle, ForgeMessages.WeaponProtectedText)
+		Toast.Success(ForgeMessages.WeaponProtectedText)
 	end
 	if result.State == BROKEN_STATE and not isWeaponLost then
 		handleWeaponBroken(result.WeaponId)
@@ -217,7 +248,7 @@ local function onLanded(beat: Beat, result: any)
 end
 
 local function getLandingTime(beat: Beat): number
-	return math.max(beat.EndsAt - os.clock(), ForgeWheelConfig.MinLandingTime)
+	return math.max(beat.HitAt - os.clock(), ForgeWheelConfig.MinLandingTime)
 end
 
 local function resolveSuccess(beat: Beat, result: any)
@@ -292,24 +323,20 @@ local function onUseItemResult(ok: any)
 	end
 end
 
-local function findHammerTemplate(): Instance?
-	local assets = ReplicatedStorage:FindFirstChild(ForgeAnimationConfig.AssetsFolderName)
-	local models = assets and assets:FindFirstChild(ForgeAnimationConfig.ModelsFolderName)
-	return models and models:FindFirstChild(ForgeStrikeConfig.HammerModelName)
-end
-
 local function enterStation()
 	local userId = Players.LocalPlayer.UserId
 	local anvil = PlotStations.FindOwnedStation(userId, StationConfig.ForgeModelName)
-	local hammer = findHammerTemplate()
+	local hammer = ForgeHammerSkin.CreateTemplate(Players.LocalPlayer)
 	local anvilPart = anvil and ForgeStation.GetAnvilPart(anvil)
 	if anvil == nil or hammer == nil or anvilPart == nil then
 		warn("[ForgeController] Missing anvil in own plot or hammer in Assets")
 		return
 	end
 	ForgeStrikeFx.Start(anvil, hammer)
+	hammer:Destroy()
 	local weapon = getActiveWeapon()
 	local shapeStage = weapon and weapon.ShapeStage or ForgeStrikeConfig.DefaultShapeStage
+	WeaponAssetPreloader.PreloadWeaponType(if weapon then weapon.WeaponType else nil, shapeStage)
 	updateWeaponModel(shapeStage, false)
 	ForgeScreen.SetAdornee(ForgeStance.Enter(anvilPart))
 end
@@ -318,17 +345,24 @@ local function canForge(weapon: WeaponSummary?): boolean
 	if not isOpen or isWeaponLost or currentBeat ~= nil or isCoolingDown() then
 		return false
 	end
-	return weapon ~= nil and weapon.State ~= BROKEN_STATE
+	return weapon ~= nil and weapon.State ~= BROKEN_STATE and not isAtMaxLevel(weapon)
 end
 
 local function startBeat(weaponId: string, remote: RemoteEvent)
 	local duration = ForgeConfig.StrikeDuration
 	beatCounter += 1
-	local beat: Beat = { Id = beatCounter, EndsAt = os.clock() + duration, IsResolved = false }
+	local hitDelay = duration * ForgeStrikeConfig.HitTime / ForgeStrikeConfig.AnimationLength
+	local now = os.clock()
+	local beat: Beat = {
+		Id = beatCounter,
+		EndsAt = now + duration,
+		IsResolved = false,
+		HitAt = now + hitDelay,
+	}
 	currentBeat = beat
 	remote:FireServer(weaponId)
 	ForgeStrikeFx.Strike(duration)
-	ForgePlayback.BeginSpin(duration)
+	ForgePlayback.BeginSpin(hitDelay)
 	watchTimeout(beat)
 end
 
@@ -336,6 +370,10 @@ local function tryForge()
 	local weapon = getActiveWeapon()
 	local remote = requestForge
 	if not canForge(weapon) or remote == nil or weapon == nil then
+		return
+	end
+	if TutorialState.IsStrikeBlocked() then
+		Toast.Error(ForgeMessages.Reasons.TutorialLocked)
 		return
 	end
 	startBeat(weapon.Id, remote)
@@ -365,6 +403,7 @@ local function resetSession()
 	end
 	currentBeat = nil
 	placedTemplate = nil
+	modelToken += 1
 	ForgeFrenzyFx.Stop()
 	ForgePlayback.Reset()
 	isWeaponLost = false
@@ -425,7 +464,8 @@ function ForgeController.Init()
 	local useResultRemote = remotes:WaitForChild(RemoteNames.NotifyUseItemResult) :: RemoteEvent
 	useResultRemote.OnClientEvent:Connect(onUseItemResult)
 	ForgeScreen.SetCloseHandler(ForgeController.Close)
-	PlayerStateController.OnChanged(function()
+	PlayerStateController.OnChanged(function(state)
+		WeaponAssetPreloader.QueueWeapons(state.Weapons)
 		if isOpen and currentBeat == nil then
 			render(true)
 		end

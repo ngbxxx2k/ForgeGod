@@ -11,6 +11,7 @@ local UiSound = require(script.Parent.Parent.Parent.Effects.UiSound)
 local OpenAnimation = require(script.Parent.Parent.Components.OpenAnimation)
 local HudSlide = require(script.Parent.Parent.Components.HudSlide)
 local ScreenRegistry = require(script.Parent.Parent.Components.ScreenRegistry)
+local ScrollCanvas = require(script.Parent.Parent.Components.ScrollCanvas)
 
 local FURNACE_GUI_NAME = "FurnaceGui"
 local SLOT_TEMPLATE_NAME = "SlotTemplate"
@@ -256,6 +257,9 @@ function FurnaceScreen.Init()
 	slot.Visible, bagItem.Visible, check.Visible = false, false, false
 	main.Visible = false
 	mainFrame, selectedRow, bagList = main, row, list
+	if not ScrollCanvas.BindToLayout(list) then
+		warn("[FurnaceScreen] BagList has no layout")
+	end
 	UiSound.WatchOpen(main)
 	OpenAnimation.Watch(main)
 	HudSlide.TrackScreen(main)

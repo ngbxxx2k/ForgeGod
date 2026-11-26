@@ -73,7 +73,6 @@ function ShopRange.Init()
 		return
 	end
 	isInitialized = true
-	registerCategory("Ore", ShopConfig.OreDisplayOrder)
 	registerCategory("Item", ShopConfig.BuffDisplayOrder)
 end
 

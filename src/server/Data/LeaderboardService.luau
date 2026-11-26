@@ -21,7 +21,7 @@ local INCOME_STAT_NAME = "Coins/s"
 
 -- Tên OrderedDataStore của từng bảng: tiền tố .. boardId .. hậu tố. Đổi hậu tố để làm lại bảng sạch.
 local ORDERED_STORE_PREFIX = "forgeGod_Leaderboard_"
-local ORDERED_STORE_SUFFIX = "_v1"
+local ORDERED_STORE_SUFFIX = "_v2"
 local MAX_PAGE_SIZE = 100
 
 export type RawEntry = {

@@ -4,17 +4,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AssetIds = require(ReplicatedStorage.Shared.Constants.AssetIds)
 local ForgeRevealTypes = require(ReplicatedStorage.Shared.Types.ForgeRevealTypes)
+local WeaponCatalog = require(ReplicatedStorage.Shared.Constants.WeaponCatalog)
 
 type WeaponVisual = ForgeRevealTypes.WeaponVisual
 type SoundSpec = ForgeRevealTypes.SoundSpec
 
 local SWORD_MODEL = "Sword_level_1"
-local VOIDHEART_MODEL = "Voidheart"
+local WEAPON_LENGTH = 4.8
 
 local ForgeAnimationConfig = {}
 
 -- Font dùng cho toàn bộ chữ trong cutscene nấu quặng
-ForgeAnimationConfig.CutsceneFont = Font.new("rbxasset://fonts/families/PressStart2P.json")
+ForgeAnimationConfig.CutsceneFont = Font.new("rbxasset://fonts/families/FredokaOne.json")
 
 -- Thư mục tìm model vũ khí: ReplicatedStorage.Assets.Models
 ForgeAnimationConfig.AssetsFolderName = "Assets"
@@ -24,48 +25,13 @@ ForgeAnimationConfig.WeaponInstanceName = "ForgeRevealWeapon"
 -- Chờ kết quả server tối đa bao nhiêu giây, quá thì huỷ cutscene
 ForgeAnimationConfig.ResultTimeout = 6
 
--- Bảng mapping loại vũ khí (Id trong WeaponCatalog) -> model + chiều dài mặc định (stud)
--- Rotation: xoay thêm để model đứng thẳng, chuôi dưới, lưỡi trên (bỏ trống nếu model đã đứng thẳng)
--- PLACEHOLDER: mới có 2 model mẫu, dùng tạm cho cả 25 loại; chiều dài tạm theo họ vũ khí
-ForgeAnimationConfig.DefaultVisual = { ModelName = SWORD_MODEL, Length = 4.8 } :: WeaponVisual
+ForgeAnimationConfig.DefaultVisual = { ModelName = SWORD_MODEL, Length = WEAPON_LENGTH } :: WeaponVisual
 
-ForgeAnimationConfig.WeaponVisuals = {
-	CommonSword = { ModelName = SWORD_MODEL, Length = 4.8 },
-	CommonAxe = { ModelName = VOIDHEART_MODEL, Length = 4 },
-	CommonSpear = { ModelName = SWORD_MODEL, Length = 6 },
-	CommonDagger = { ModelName = SWORD_MODEL, Length = 2.5 },
-	CommonHammer = { ModelName = VOIDHEART_MODEL, Length = 4.5 },
+ForgeAnimationConfig.WeaponVisuals = {} :: { [string]: WeaponVisual }
 
-	UncommonSword = { ModelName = SWORD_MODEL, Length = 4.8 },
-	UncommonAxe = { ModelName = VOIDHEART_MODEL, Length = 4 },
-	UncommonSpear = { ModelName = SWORD_MODEL, Length = 6 },
-	UncommonDagger = { ModelName = SWORD_MODEL, Length = 2.5 },
-	UncommonHammer = { ModelName = VOIDHEART_MODEL, Length = 4.5 },
-
-	RareSword = { ModelName = SWORD_MODEL, Length = 4.8 },
-	RareAxe = { ModelName = VOIDHEART_MODEL, Length = 4 },
-	RareSpear = { ModelName = SWORD_MODEL, Length = 6 },
-	RareDagger = { ModelName = SWORD_MODEL, Length = 2.5 },
-	RareHammer = { ModelName = VOIDHEART_MODEL, Length = 4.5 },
-
-	EpicSword = { ModelName = SWORD_MODEL, Length = 4.8 },
-	EpicAxe = { ModelName = VOIDHEART_MODEL, Length = 4 },
-	EpicSpear = { ModelName = SWORD_MODEL, Length = 6 },
-	EpicDagger = { ModelName = SWORD_MODEL, Length = 2.5 },
-	EpicHammer = { ModelName = VOIDHEART_MODEL, Length = 4.5 },
-
-	LegendarySword = { ModelName = SWORD_MODEL, Length = 4.8 },
-	LegendaryAxe = { ModelName = VOIDHEART_MODEL, Length = 4 },
-	LegendarySpear = { ModelName = SWORD_MODEL, Length = 6 },
-	LegendaryDagger = { ModelName = SWORD_MODEL, Length = 2.5 },
-	LegendaryHammer = { ModelName = VOIDHEART_MODEL, Length = 4.5 },
-
-	MythicSword = { ModelName = SWORD_MODEL, Length = 4.8 },
-	MythicAxe = { ModelName = VOIDHEART_MODEL, Length = 4 },
-	MythicSpear = { ModelName = SWORD_MODEL, Length = 6 },
-	MythicDagger = { ModelName = SWORD_MODEL, Length = 2.5 },
-	MythicHammer = { ModelName = VOIDHEART_MODEL, Length = 4.5 },
-} :: { [string]: WeaponVisual }
+for id in WeaponCatalog.ById do
+	ForgeAnimationConfig.WeaponVisuals[id] = { ModelName = SWORD_MODEL, WeaponTypeId = id, Length = WEAPON_LENGTH }
+end
 
 -- Camera điện ảnh
 ForgeAnimationConfig.Camera = {
@@ -100,30 +66,23 @@ ForgeAnimationConfig.Camera = {
 -- Thứ tự cấp bậc từ thấp tới cao (thêm cấp mới thì thêm vào đây và vào Rarities)
 ForgeAnimationConfig.RarityOrder = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
 
--- Mỗi cấp: tên hiển thị, màu flash/sét, số cú sét, thời lượng giai đoạn B (giây)
+-- Mỗi cấp: tên hiển thị, màu flash/sét, số cú sét (mỗi cú sét = một bậc trong vòng roll)
 ForgeAnimationConfig.Rarities = {
-	Common = { DisplayName = "COMMON", Color = Color3.fromRGB(225, 228, 235), StrikeCount = 12, Duration = 8 },
-	Uncommon = {
-		DisplayName = "UNCOMMON",
-		Color = Color3.fromRGB(70, 200, 90),
-		StrikeCount = 13,
-		Duration = 8.25,
-	},
-	Rare = { DisplayName = "RARE", Color = Color3.fromRGB(60, 140, 255), StrikeCount = 14, Duration = 8.5 },
-	Epic = { DisplayName = "EPIC", Color = Color3.fromRGB(175, 75, 255), StrikeCount = 16, Duration = 9 },
-	Legendary = {
-		DisplayName = "LEGENDARY",
-		Color = Color3.fromRGB(255, 200, 40),
-		StrikeCount = 18,
-		Duration = 9.5,
-	},
-	Mythic = { DisplayName = "MYTHIC", Color = Color3.fromRGB(255, 45, 45), StrikeCount = 20, Duration = 10 },
-} :: { [string]: { DisplayName: string, Color: Color3, StrikeCount: number, Duration: number } }
+	Common = { DisplayName = "COMMON", Color = Color3.fromRGB(225, 228, 235), StrikeCount = 5 },
+	Uncommon = { DisplayName = "UNCOMMON", Color = Color3.fromRGB(70, 200, 90), StrikeCount = 5 },
+	Rare = { DisplayName = "RARE", Color = Color3.fromRGB(60, 140, 255), StrikeCount = 6 },
+	Epic = { DisplayName = "EPIC", Color = Color3.fromRGB(175, 75, 255), StrikeCount = 6 },
+	Legendary = { DisplayName = "LEGENDARY", Color = Color3.fromRGB(255, 200, 40), StrikeCount = 7 },
+	Mythic = { DisplayName = "MYTHIC", Color = Color3.fromRGB(255, 45, 45), StrikeCount = 8 },
+} :: { [string]: { DisplayName: string, Color: Color3, StrikeCount: number } }
 
--- Nhịp sét: khoảng cách 2 cú đầu (giây), các cú sau giãn dần; giữ bao lâu sau cú cuối
+-- Nhịp sét bám theo tiếng sấm: cú sét kế tiếp chỉ đánh khi tiếng sấm trước đã phát hết
+-- ThunderLength: độ dài file tiếng sấm (giây, ở tốc độ 1), StrikeGap: nghỉ thêm giữa 2 cú
+-- FinalHold: giữ bao lâu sau cú cuối (phải >= tiếng sấm cuối để không bị cắt)
 ForgeAnimationConfig.RarityRoll = {
-	FirstInterval = 0.12,
-	FinalHold = 1.6,
+	ThunderLength = 1.57,
+	StrikeGap = 0.1,
+	FinalHold = 2.3,
 }
 
 -- Tia sét (Beam zigzag)
@@ -138,7 +97,7 @@ ForgeAnimationConfig.Lightning = {
 	GlowWidth = 1.4,
 	GlowTransparency = 0.55,
 	CoreWhiteness = 0.65,
-	Lifetime = 0.18,
+	Lifetime = 0.3,
 	-- Tia sét xuyên qua vũ khí: đi tiếp xuống dưới đáy vũ khí bao nhiêu stud, số đoạn và độ lệch khi xuyên
 	ExitDepth = 2.5,
 	PassSegments = 4,
@@ -146,22 +105,19 @@ ForgeAnimationConfig.Lightning = {
 	-- Cú sét cuối: nhiều tia cùng lúc, to hơn, lâu hơn
 	FinalBoltCount = 3,
 	FinalWidthMultiplier = 2.2,
-	FinalLifetime = 0.45,
+	FinalLifetime = 0.7,
 	-- Đèn loé tại điểm sét đánh
 	ImpactLightRange = 18,
 	ImpactLightBrightness = 8,
-	-- Mỗi cú sét phát tiếng nổ điện và tiếng sấm, chọn ngẫu nhiên trong danh sách
-	ZapSoundIds = AssetIds.Weather.PlasmaZap,
-	ThunderSoundIds = AssetIds.Weather.Thunder,
-	ZapVolume = 1.4,
+	-- Mỗi cú sét phát tiếng sấm, chọn ngẫu nhiên trong danh sách
+	ThunderSoundIds = AssetIds.Weather.ForgeThunder,
 	ThunderVolume = 1,
 	-- Cú sét cuối: to hơn, trầm hơn
-	FinalZapVolume = 2,
 	FinalThunderVolume = 2.5,
 	FinalPlaybackSpeed = 0.75,
-	-- Pitch tăng dần theo từng cú sét
-	PitchStart = 0.8,
-	PitchEnd = 1.3,
+	-- Pitch giảm dần theo từng cú sét: tiếng sấm trầm và dài dần, nhịp roll chậm dần lại
+	PitchStart = 1.25,
+	PitchEnd = 0.9,
 }
 
 -- Vũ khí rung khi bị sét đánh: độ mạnh cú thường / cú cuối, độ lệch tối đa (stud, độ),

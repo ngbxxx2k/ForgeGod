@@ -39,6 +39,8 @@ local function buildEntry(item: BackpackItem): WeaponEntry
 		ButtonText = if item.IsEquipped then EquipMessages.UnequipText else EquipMessages.EquipText,
 		IsEquipped = item.IsEquipped == true,
 		Image = item.Image,
+		ImageRectOffset = item.ImageRectOffset,
+		ImageRectSize = item.ImageRectSize,
 	}
 end
 
@@ -111,7 +113,7 @@ local function onEquipResult(ok: any, reason: any)
 		return
 	end
 	local message = type(reason) == "string" and EquipMessages.Reasons[reason]
-	Toast.Show(EquipMessages.NotificationTitle, message or EquipMessages.UnknownError)
+	Toast.Error(message or EquipMessages.UnknownError)
 end
 
 function LoadoutController.Init()

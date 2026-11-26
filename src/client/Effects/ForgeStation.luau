@@ -7,6 +7,7 @@ local Workspace = game:GetService("Workspace")
 local ForgeStrikeConfig = require(ReplicatedStorage.Shared.Config.ForgeStrikeConfig)
 local ForgeViewConfig = require(ReplicatedStorage.Shared.Config.ForgeViewConfig)
 local ForgeHammerProfile = require(ReplicatedStorage.Shared.Config.ForgeHammerProfile)
+local HoldConfig = require(ReplicatedStorage.Shared.Config.HoldConfig)
 
 local ForgeStation = {}
 
@@ -148,6 +149,17 @@ local function settleOnAnvil(model: Model, anvilPart: BasePart)
 	end
 end
 
+local function getShaftCenter(model: Model): Vector3
+	local center = model:GetBoundingBox().Position
+	local gripPoint = model:FindFirstChild(HoldConfig.WeaponGripPointName, true)
+	if not gripPoint or not gripPoint:IsA("Attachment") then
+		return center
+	end
+	local axis = gripPoint.WorldCFrame.UpVector
+	local origin = gripPoint.WorldPosition
+	return origin + axis * (center - origin):Dot(axis)
+end
+
 local function alignToForgePoint(model: Model, forgePoint: Attachment)
 	local target = forgePoint.WorldCFrame
 	local anchor = model:FindFirstChild(names.WeaponAnchor, true)
@@ -156,7 +168,7 @@ local function alignToForgePoint(model: Model, forgePoint: Attachment)
 		return
 	end
 	model:PivotTo(target * ForgeStrikeConfig.WeaponRotation)
-	local center = model:GetBoundingBox().Position
+	local center = getShaftCenter(model)
 	local up = target.UpVector
 	local horizontal = (target.Position - center) - up * (target.Position - center):Dot(up)
 	local lift = target.Position:Dot(up) - lowestOffset(model, up)

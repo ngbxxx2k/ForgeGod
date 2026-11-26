@@ -173,7 +173,7 @@ ForgeResultFxConfig.Styles = {
 		TextEasing = Enum.EasingStyle.Back,
 		TextDuration = 0.35,
 		TextWobble = 0,
-		SoundName = "ForgeNoChange",
+		SoundName = "ForgeShieldBreak",
 	},
 } :: { [string]: FxStyle }
 

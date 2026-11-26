@@ -43,6 +43,11 @@ PlotConfig.FenceSuffix = "Fence"
 PlotConfig.FencePostNames = { "Post", "PostCap" }
 PlotConfig.FenceRailNames = { "RailTop", "RailBottom" }
 
+-- PLACEHOLDER: điểm hồi sinh so với tâm sàn plot: ngoài cổng rào (rào r=26.5), cao 3 stud (HumanoidRootPart), mặt nhìn vào plot
+PlotConfig.SpawnOffset = CFrame.new(0, 3, 32)
+-- PLACEHOLDER: thời gian chờ tối đa (giây) để nhân vật có HumanoidRootPart trước khi dời về plot
+PlotConfig.SpawnRootWaitTime = 5
+
 PlotConfig.UpgradeSignName = "PlotUpgradeSign"
 -- PLACEHOLDER: vị trí bảng nâng cấp so với tâm sàn plot: ngoài rào, bên phải cổng khi nhìn từ tâm map ra, mặt bảng nhìn về tâm map
 PlotConfig.UpgradeSignOffset = CFrame.new(9, -0.2, 30) * CFrame.Angles(0, math.pi, 0)

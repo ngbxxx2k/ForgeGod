@@ -9,6 +9,7 @@ export type Strike = {
 	Time: number,
 	Progress: number,
 	IsFinal: boolean,
+	PlaybackSpeed: number,
 }
 
 local SOLVER_STEPS = 40
@@ -61,22 +62,37 @@ function RollSchedule.BuildTimes(count: number, firstInterval: number, span: num
 	return times
 end
 
+local function strikeSpeed(progress: number, isFinal: boolean): number
+	local config = ForgeAnimationConfig.Lightning
+	if isFinal then
+		return config.FinalPlaybackSpeed
+	end
+	return config.PitchStart + (config.PitchEnd - config.PitchStart) * progress
+end
+
 function RollSchedule.Build(targetRarity: string): ({ Strike }, number)
 	local info = ForgeAnimationConfig.Rarities[targetRarity] or ForgeAnimationConfig.Rarities.Common
+	local roll = ForgeAnimationConfig.RarityRoll
 	local targetIndex = table.find(ForgeAnimationConfig.RarityOrder, targetRarity) or 1
 	local strikeCount = math.max(info.StrikeCount, 1)
-	local span = math.max(info.Duration - ForgeAnimationConfig.RarityRoll.FinalHold, 0)
-	local times = RollSchedule.BuildTimes(strikeCount, ForgeAnimationConfig.RarityRoll.FirstInterval, span)
 	local strikes = {}
-	for index, time in times do
+	local elapsed = 0
+	for index = 1, strikeCount do
+		local isFinal = index == strikeCount
+		local progress = if strikeCount > 1 then (index - 1) / (strikeCount - 1) else 1
+		local speed = strikeSpeed(progress, isFinal)
 		table.insert(strikes, {
 			Rarity = rarityAt(targetIndex, strikeCount, index),
-			Time = time,
-			Progress = if strikeCount > 1 then (index - 1) / (strikeCount - 1) else 1,
-			IsFinal = index == strikeCount,
+			Time = elapsed,
+			Progress = progress,
+			IsFinal = isFinal,
+			PlaybackSpeed = speed,
 		})
+		if not isFinal then
+			elapsed += roll.ThunderLength / speed + roll.StrikeGap
+		end
 	end
-	return strikes, info.Duration
+	return strikes, elapsed + roll.FinalHold
 end
 
 return RollSchedule

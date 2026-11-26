@@ -6,6 +6,7 @@ local ForgeConfig = require(ReplicatedStorage.Shared.Config.ForgeConfig)
 local ForgeWheelConfig = require(ReplicatedStorage.Shared.Config.ForgeWheelConfig)
 local ForgeOutcomes = require(ReplicatedStorage.Shared.Constants.ForgeOutcomes)
 local ForgeMessages = require(ReplicatedStorage.Shared.Constants.ForgeMessages)
+local ItemVisuals = require(ReplicatedStorage.Shared.Constants.ItemVisuals)
 local NumberFormat = require(ReplicatedStorage.Shared.Utils.NumberFormat)
 local WheelMath = require(ReplicatedStorage.Shared.Utils.WheelMath)
 local WeaponIncome = require(ReplicatedStorage.Shared.Utils.WeaponIncome)
@@ -20,11 +21,12 @@ local BREAK_OUTCOME_ID = "Break"
 local PROTECTED_STYLE_ID = "Protected"
 local FRENZY_COLOR = Color3.fromRGB(255, 200, 60)
 local PROTECTED_COLOR = Color3.fromRGB(120, 180, 255)
+local PROTECTED_ICON = ItemVisuals.Talisman.Image
 local ANGLE_TOLERANCE = 1e-3
 local FULL_TURN = 360
 local MONOTONIC_DIVISOR = 3
 
-export type NameResolver = (result: any) -> string
+export type NameResolver = (result: any) -> (string, number)
 
 local ForgePlayback = {}
 
@@ -136,28 +138,33 @@ local function buildView(result: any): (ForgeScreen.ResultView, string)
 	}, result.OutcomeId
 end
 
-local function getPopupLabel(result: any): (string, Color3)
+local function getPopupLabel(result: any): (string, Color3, string?)
 	if result.IsProtected == true then
-		return ForgeMessages.ProtectedDisplayName, PROTECTED_COLOR
+		return ForgeMessages.ProtectedDisplayName, PROTECTED_COLOR, PROTECTED_ICON
 	end
 	local outcome = findOutcome(result.OutcomeId)
 	if outcome == nil then
-		return ForgeMessages.FrenzyDisplayName, FRENZY_COLOR
+		return ForgeMessages.FrenzyDisplayName, FRENZY_COLOR, nil
 	end
-	return outcome.DisplayName, outcome.TextColor
+	return outcome.DisplayName, outcome.TextColor, nil
 end
 
 local function present(result: any)
 	local view, styleId = buildView(result)
 	ForgeScreen.ShowResult(view)
 	ForgeResultFx.Play(styleId)
-	local popupText, popupColor = getPopupLabel(result)
-	ForgeOutcomePopup.Show(ForgeStrikeFx.GetImpactPoint(), popupText, popupColor)
+	local popupText, popupColor, popupIcon = getPopupLabel(result)
+	ForgeOutcomePopup.Show(ForgeStrikeFx.GetImpactPoint(), popupText, popupColor, popupIcon)
 	local resolver = nameResolver
+	local weaponName, maxLevel = "", result.Level
+	if resolver then
+		weaponName, maxLevel = resolver(result)
+	end
 	ForgeScreen.Render({
-		WeaponName = if resolver then resolver(result) else "",
+		WeaponName = weaponName,
 		Mutation = getMutation(result),
 		Level = result.Level,
+		MaxLevel = maxLevel,
 		Value = getIncome(result.Value, getMutation(result)),
 		ForgePoints = result.ForgePoints,
 		MaxForgePoints = ForgeConfig.MaxForgePoints,

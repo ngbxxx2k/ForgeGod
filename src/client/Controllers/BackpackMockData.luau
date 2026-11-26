@@ -24,7 +24,7 @@ local ORE_SAMPLES = {
 local BUFF_SAMPLES = {
 	{ Id = "LuckPotion", Amount = 2 },
 	{ Id = "BlessingPotion", Amount = 1 },
-	{ Id = "MerchantPotion", Amount = 3 },
+	{ Id = "AngelHeart", Amount = 1 },
 	{ Id = "Talisman", Amount = 1 },
 	{ Id = "MutationEraser", Amount = 1 },
 }
@@ -53,7 +53,7 @@ local WEAPON_SAMPLES: { BackpackItem } = {
 	{
 		Id = "W3",
 		Category = "Weapon",
-		DisplayName = "Golden Spear",
+		DisplayName = "Golden Scythe",
 		Amount = 1,
 		Price = 98000,
 		Level = 23,

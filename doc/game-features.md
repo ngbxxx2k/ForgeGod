@@ -87,6 +87,7 @@ Trạng thái: **Đã có** = chạy được trong game · **Một phần** = c
 
 - F7.1 **4 ô** Loadout lúc đầu (mỗi ô là một trụ trên plot). Vũ khí trong Loadout sinh tiền **mỗi giây**.
 - F7.2 Tiền/giây = giá trị × hệ số mutation × `ValueRatio` (hiện là 1, giá trị tạm).
+- F7.2b **Không có thu nhập offline**: chỉ cộng tiền khi người chơi đang ở trong game (`IncomeSystem`). Thoát game thì ngừng, vào lại không được cộng bù.
 - F7.3 Nút **Equip Best** tự chọn các vũ khí sinh tiền cao nhất.
 - F7.4 Vũ khí trong Loadout không thể bán hay rèn. Phải gỡ ra trước.
 - F7.5 Nâng thêm ô Loadout ở bảng **Upgrade Plot**: từ 4 lên tối đa **10 ô**, trả bằng coins (giá tạm). Mua bằng Robux đã có code nhưng chưa tạo Developer Product.
@@ -122,35 +123,24 @@ Trạng thái: **Đã có** = chạy được trong game · **Một phần** = c
 - F12.1 Có `leaderstats` hiện tiền trong server.
 - F12.2 4 bảng toàn game ở Hub (OrderedDataStore), top 100, cuộn được, làm mới mỗi 10 phút theo mốc `os.time()`: Top Money (tổng tiền kiếm được), Top Level (cấp vũ khí cao nhất), Top Weapon $/s ($/s cao nhất của một vũ khí), Top Donated (tổng Robux đã chi).
 
-### F13. Nâng cấp đe rèn và búa rèn (Một phần: có UI, chưa có server)
+### F13. Nâng cấp đe rèn và búa rèn (Đã làm)
 
-Định hướng: người chơi dùng tiền (hoặc tài nguyên khác) để nâng cấp **đe** và **búa**. Mỗi cấp tăng một vài chỉ số rèn. Đây là nguồn tiến triển lâu dài, song song với việc mua quặng tốt hơn.
+- Đe và búa mỗi món 7 bậc. Mỗi bậc cộng **may mắn khi rèn** (chỉ áp dụng lúc rèn). Có cả đe và búa Mithril thì được +150%.
+- Mua bằng coins, **được mua vượt bậc** (trả giá của bậc mua), giống máy dò và xẻng. Mua bằng Robux đã có code, `ProductId` đang là 0.
+- Mua xong thì đe trên plot và búa khi đập tự đổi sang **texture** của bậc mới. Bấm EQUIP ở bậc thấp hơn đã sở hữu để quay lại texture đó. May mắn luôn tính theo bậc cao nhất.
+- Công thức trọng số Thành công / Xuất sắc khi rèn: × (1 + may mắn bạn bè + may mắn đe + may mắn búa) × Forge Luck Potion × pass x2 Luck.
 
-**Chưa chốt** (cần quyết định trước khi code):
+| Bậc | Giá (mỗi món) | May mắn khi rèn (mỗi món) |
+| --- | --- | --- |
+| Copper | 0 | +0% |
+| Silver | 25K | +5% |
+| Gold | 2.5M | +10% |
+| Platinum | 1B | +20% |
+| Emerald | 2.5T | +35% |
+| Dark Moonstone | 10Qa | +50% |
+| Mithril | 1Qi | +75% |
 
-- Đe và búa tăng những chỉ số nào. Có nên chia vai: đe lo phần "an toàn", búa lo phần "sức mạnh"?
-- Số cấp tối đa, giá từng cấp, mức tăng mỗi cấp.
-- Trả bằng gì: chỉ tiền, hay cần thêm quặng hoặc vật phẩm đặc biệt.
-- Nâng cấp có đổi ngoại hình đe/búa không (model, hiệu ứng).
-- Cộng với buff thế nào: nhân hay cộng, và có giới hạn trên không để không phá cân bằng.
-
-**Các chỉ số có thể chọn** (chỉ là gợi ý, chưa quyết định):
-
-| Chỉ số | Tác động lên hệ thống hiện tại |
-| --- | --- |
-| Giảm tỉ lệ vỡ | Nhân trọng số "Vỡ" (giống Blessing Potion) |
-| Tăng tỉ lệ thành công | Nhân trọng số Success / Great Success (giống Luck Potion) |
-| Tăng hệ số giá | Tăng x1.5 / x2.5 / x3.5 khi đập thành công |
-| Tăng tỉ lệ mutation | Nhân tỉ lệ 5% / 20% |
-| Frenzy dài hơn hoặc dễ ra hơn | Tăng 4 giây, hoặc tăng 15% / giảm số lần bảo hiểm |
-| Đổi hình dễ hơn | Tăng tỉ lệ sự kiện đổi hình dạng |
-| Đập nhanh hơn | Giảm thời gian một nhịp đập (hiện 0.8 giây) |
-
-**Ghi chú kỹ thuật khi làm:**
-
-- Cấp đe/búa là dữ liệu người chơi: thêm trường mới vào `DataTemplate.Default` (Reconcile tự bổ sung, không cần migrate). Mọi thay đổi đi qua `DataActions`.
-- Số liệu mỗi cấp đặt trong `shared/Config` (client cần hiển thị giá và chỉ số).
-- `ForgeService` đọc cấp đe/búa khi tính trọng số, giống cách đang đọc buff (`getModifiers`).
+Giá máy dò: 15K, 1.5M, 500M, 1T, 5Qa, 500Qa. Giá xẻng: 10K, 1M, 400M, 800B, 4Qa, 400Qa. Giá nâng plot (ô 5 đến 10): 100K, 25M, 5B, 5T, 10Qa, 5Qi.
 
 ### F14. Giao diện và âm thanh (Một phần)
 
@@ -158,35 +148,46 @@ Trạng thái: **Đã có** = chạy được trong game · **Một phần** = c
 - Đã có: âm thanh mở UI, đập búa, vòng quay.
 - Chưa làm hoặc thiếu: âm thanh của lò (Sound ID đang để trống), âm thanh thời tiết, kiểm tra kỹ trên điện thoại.
 
+### F15. Hướng dẫn người chơi mới (Đã có)
+
+- 12 bước, làm lần lượt: tới bãi đào → đào 5 quặng mới → tới lò nấu (E) → chọn 5 quặng và Start → đóng lò → tới đe, chọn vũ khí → đập 1 lần → rời đe → mở Loadout → bấm EQUIP vũ khí vừa rèn → đóng Loadout → tới shop Upgrades, bấm lần lượt tab Anvil, Hammer, Shovel, Detector.
+- Bảng hướng dẫn góc trên bên phải (dưới nút Item Shop): "TUTORIAL x/12", icon, tiêu đề, mô tả, thanh tiến độ. Chuyển sang trái khi mở lò nấu/Loadout, xuống giữa dưới khi mở bảng chọn vũ khí/Upgrades/đang ở đe. Xong thì hiện "TUTORIAL COMPLETE!" 6 giây.
+- Mũi tên chevron trên mặt đất từ người chơi tới chỗ cần đến, bám theo cả khi dịch chuyển bằng nút HUD. Bàn tay chỉ vào nút cần bấm.
+- Lưu tiến độ trong `Tutorial` (bước, số quặng đã đào, cờ hoàn thành). Thoát giữa chừng vào lại thì làm tiếp; bước chỉ có trong UI (đang mở lò, đang ở đe...) quay về bước gần nhất làm lại được.
+- Trong lúc hướng dẫn: sau lần đập đầu tiên bị khoá đập cho tới khi rời đe; nút Equip Best bị khoá ở bước mở Loadout và trang bị.
+- Người chơi cũ (đã từng rèn, chưa bắt đầu hướng dẫn) tự được tính là đã xong. Hoàn thành không có thưởng.
+
 ## 3. Shop: giá và tỉ lệ xuất hiện mỗi lần restock
 
 ### Quặng
 
 | Quặng | Giá | Điểm | Tỉ lệ xuất hiện | Số lượng |
 | --- | --- | --- | --- | --- |
-| Copper | 20 | 1 | 100% | 30 đến 50 |
-| Iron | 100 | 2 | 95% | 20 đến 35 |
-| Silver | 300 | 3 | 85% | 14 đến 25 |
-| Gold | 1,000 | 4 | 70% | 10 đến 18 |
-| Platinum | 5,000 | 5 | 50% | 6 đến 12 |
-| Emerald | 15,000 | 6 | 30% | 4 đến 8 |
-| Dark Moonstone | 60,000 | 7 | 15% | 2 đến 5 |
-| Mithril | 250,000 | 8 | 5% | 1 đến 3 |
-| God's Core | 1,000,000 | 10 | 2% | 1 đến 2 |
+| Copper | 20 | 1 | 100% | 35 đến 40 |
+| Iron | 100 | 2 | 100% | 30 đến 40 |
+| Silver | 300 | 3 | 90% | 25 đến 35 |
+| Gold | 1,000 | 4 | 75% | 20 đến 30 |
+| Platinum | 5,000 | 5 | 55% | 15 đến 25 |
+| Emerald | 15,000 | 6 | 35% | 10 đến 20 |
+| Dark Moonstone | 60,000 | 7 | 20% | 8 đến 15 |
+| Mithril | 250,000 | 8 | 10% | 5 đến 10 |
+| God's Core | 1,000,000 | 10 | 7% | 5 đến 8 |
+
+- Quặng thường đủ nấu 5 đến 8 thanh mỗi lần restock (1 thanh = 5 quặng). Quặng hiếm nhất ra khoảng 1 lần mỗi 10 đến 15 lần restock. Kho shop dùng chung cả server.
 
 ### Vật phẩm
 
-Tỉ lệ xuất hiện theo độ hiếm của vật phẩm: Common 80% (3 đến 5 cái), Uncommon 50% (2 đến 4), Rare 25% (1 đến 2). Đá tẩy mutation: 25% (1 đến 3), giá 5,000.
+Tỉ lệ xuất hiện theo độ hiếm của vật phẩm: Common 90% (3 đến 5 cái), Uncommon 60% (2 đến 4), Rare 35% (1 đến 2), Epic 20% (1 đến 2), Legendary 10% (1), Mythic 7% (1).
 
 ## 4. Lò nấu: tỉ lệ độ hiếm theo tổng điểm
 
 | Tổng điểm (5 quặng) | Common | Uncommon | Rare | Epic | Legendary | Mythic |
 | --- | --- | --- | --- | --- | --- | --- |
-| 5 đến 14 | 75% | 20% | 5% | 0% | 0% | 0% |
-| 15 đến 24 | 45% | 30% | 23% | 2% | 0% | 0% |
-| 25 đến 34 | 20% | 30% | 35% | 12% | 2.5% | 0.5% |
-| 35 đến 44 | 5% | 20% | 40% | 25% | 8% | 2% |
-| 45 đến 50 | 0% | 10% | 30% | 40% | 15% | 5% |
+| 5 đến 14 | 60% | 27% | 10% | 2.9% | 0.1% | 0% |
+| 15 đến 24 | 35% | 32% | 25% | 6.5% | 1.3% | 0.2% |
+| 25 đến 34 | 15% | 27% | 35% | 17% | 5% | 1% |
+| 35 đến 44 | 4% | 15% | 36% | 30% | 12% | 3% |
+| 45 đến 50 | 0% | 6% | 26% | 40% | 21% | 7% |
 
 - **May mắn L** (tổng buff và bạn bè): trọng số độ hiếm thứ i (Common = 1) nhân với (1 + L)^(i − 1).
 
@@ -217,16 +218,17 @@ Cân nặng = cân nặng gốc của họ vũ khí × hệ số (Dagger 1kg, Sw
 
 | Kết quả | Trọng số | Tác động giá | Điểm / cấp |
 | --- | --- | --- | --- |
-| Vỡ | 2 + 3 × điểm rèn | Thành đồ hỏng (50% giá phôi gốc) | Không đổi |
-| Trừ điểm | 10 | Về giá trước đó | −1 |
+| Vỡ | (2 + 3 × điểm rèn) × độ khó | Thành đồ hỏng (50% giá phôi gốc) | Không đổi |
+| Trừ điểm | 10 × độ khó | Về giá trước đó | −1 |
 | Giữ nguyên | 25 | Giữ giá | 0 |
 | Thành công | 40 | x1.5 | +1 |
 | Xuất sắc | 15 | x2.5 (80%) hoặc x3.5 (20%) | +1 |
 
 - Không có "Vỡ" khi vũ khí cấp 0. Không có "Trừ điểm" khi điểm rèn bằng 0.
-- Tỉ lệ vỡ không buff: khoảng **2.4%** ở 0 điểm, **24.4%** ở 9 điểm.
-- **Thành công và Xuất sắc** nhân trọng số với (1 + may mắn bạn bè) × Luck Potion.
-- **Vỡ** nhân trọng số với Blessing Potion. **Talisman** biến một lần vỡ thành "Giữ nguyên".
+- **Độ khó theo cấp vũ khí**: Lv 0 đến 9 là x0.25 (dễ). Từ Lv 10 tăng đều, Lv 20 là x0.62, Lv 30 là x1 (mức cũ), Lv 40 là x1.25, Lv 50 trở lên là x1.5 (tối đa).
+- Tỉ lệ vỡ không buff (0 điểm / 9 điểm): Lv 5 khoảng **0.6% / 8%**, Lv 20 khoảng **1.5% / 17%**, Lv 30 khoảng **2.4% / 24%**, Lv 50+ khoảng **3.6% / 31%**.
+- **Thành công và Xuất sắc** nhân trọng số với (1 + may mắn bạn bè + may mắn đe/búa) × Forge Luck Potion.
+- **Talisman** biến một lần vỡ thành "Giữ nguyên".
 - Trong **Frenzy**: không có Vỡ, giá vẫn đổi theo bảng, cấp và điểm không đổi.
 
 ## 6. Mutation và thời tiết
@@ -241,21 +243,25 @@ Cân nặng = cân nặng gốc của họ vũ khí × hệ số (Dagger 1kg, Sw
 | Shadow | x5 | Rare (8) | Lunar Eclipse | Very Rare (4) |
 | Plasma | x5 | Rare (8) | Plasma Storm | Very Rare (4) |
 
-- Ngoài thời tiết: 5% mỗi lần đập (Mutation Catalyst x2).
-- Trong thời tiết: 20% mỗi lần đập (Storm Potion x2).
+- May mắn bạn bè áp dụng cho rèn, nấu và đào quặng. May mắn đào = may mắn máy dò × (1 + may mắn bạn bè + Prospector Potion) × pass x2 Luck.
+- Ngoài thời tiết: 1% mỗi lần đập (Mutation Catalyst x2).
+- Trong thời tiết: 5% mỗi lần đập (Storm Potion x2).
 
 ## 7. Vật phẩm buff
 
 | Vật phẩm | Loại | Thời gian | Độ hiếm | Giá | Tác dụng |
 | --- | --- | --- | --- | --- | --- |
-| Blessing Potion | Theo thời gian | 3 phút | Common | 500 | Tỉ lệ vỡ x0.8 |
-| Luck Potion | Theo thời gian | 3 phút | Common | 500 | Tỉ lệ thành công x1.25 |
-| Merchant Potion | Theo thời gian | 3 phút | Uncommon | 1,500 | Giá bán x1.2 |
-| Mutation Catalyst | Theo thời gian | 3 phút | Uncommon | 2,000 | Tỉ lệ mutation x2 |
-| Alloy Flux Potion | Theo thời gian | 3 phút | Rare | 4,000 | May mắn khi nấu +15% |
-| Storm Potion | Theo thời gian | 5 phút | Rare | 4,000 | Tỉ lệ mutation thời tiết x2 |
-| Talisman | Dùng 1 lần | — | Rare | 5,000 | Chặn 1 lần vỡ |
-| Mutation Eraser | Dùng ngay | — | — | 5,000 | Xoá mutation (chưa dùng được) |
+| Prospector Potion (id BlessingPotion) | Theo thời gian | 3 phút | Common | 5,000 | May mắn khi đào quặng +20% |
+| Forge Luck Potion (id LuckPotion) | Theo thời gian | 3 phút | UnCommon | 10,000 | May mắn khi rèn +15% (trọng số Thành công x1.15) |
+| Angel Heart | dùng ngay | | mythic | 2,500,000 | hồi sinh vũ khí đã vỡ về phôi level 0, xoá mutation |
+| Mutation Catalyst | Theo thời gian | 3 phút | rare | 100,000 | Tỉ lệ mutation x2 |
+| Alloy Flux Potion | Theo thời gian | 3 phút | epic | 1,000,000 | May mắn khi nấu +15% |
+| Storm Potion | Theo thời gian | 5 phút | epic | 1,000,000 | Tỉ lệ mutation thời tiết x2 |
+| Talisman | Dùng 1 lần | — | legendary | 10,000,000 | Chặn 1 lần vỡ |
+| Mutation Eraser | Dùng ngay | — | epic | 2,500,000 | Xoá mutation, rèn tiếp có thể ra mutation mới |
+
+- Angel Heart và Mutation Eraser dùng từ Backpack: mở bảng chọn vũ khí (nút **USE**). Angel Heart chỉ hiện vũ khí đã vỡ. Mutation Eraser chỉ hiện vũ khí có mutation, không nằm trong Loadout, không vỡ, không khoá.
+- Talisman chặn vỡ: icon Talisman hiện to phía trên chữ "SAVED!" ngay trên đe.
 
 ## 8. Công thức giá
 
@@ -273,9 +279,9 @@ Cập nhật 2026-11-24. Đánh dấu `[x]` khi xong. Cột "Cần chốt" là q
 
 | # | Việc | Cần chốt |
 | --- | --- | --- |
-| [ ] A1 | **Đá tẩy mutation**: Remote dùng đá với Id vũ khí, server kiểm tra sở hữu / khoá / Loadout, thêm hàm tẩy vào `DataActions`, nút dùng trong Backpack | Sau khi tẩy, rèn tiếp có ra lại mutation không |
+| [x] A1 | **Đá tẩy mutation**: Remote dùng đá với Id vũ khí, server kiểm tra sở hữu / khoá / Loadout, thêm hàm tẩy vào `DataActions`, nút dùng trong Backpack | Sau khi tẩy, rèn tiếp có ra lại mutation không |
 | [ ] A2 | **Index lưu thật**: thêm trường vũ khí đã mở khoá vào `DataTemplate`, ghi khi nấu/rèn ra loại mới, Remote nhận thưởng, bỏ `IndexMockData` | Điều kiện mở khoá (loại + mutation?), phần thưởng |
-| [ ] A3 | **Nâng cấp đe/búa (F13), phía server**: trường cấp trong `DataTemplate`, hàm nâng trong `DataActions`, Remote, `ForgeService` đọc chỉ số khi tính trọng số, nối với UI đã có | Chỉ số từng track, số cấp, giá, cách cộng với buff, giới hạn trên |
+| [x] A3 | **Nâng cấp đe/búa (F13), phía server**: trường cấp trong `DataTemplate`, hàm nâng trong `DataActions`, Remote, `ForgeService` đọc chỉ số khi tính trọng số, nối với UI đã có | Chỉ số từng track, số cấp, giá, cách cộng với buff, giới hạn trên |
 | [ ] A4 | **Nâng sức chứa kho** (`Capacity.Items` = 50) | Giá, mỗi lần thêm bao nhiêu ô, có bán Robux không |
 | [ ] A5 | Xoá `client/Controllers/BackpackMockData.luau` (không còn nơi nào dùng) | Người dùng đồng ý xoá |
 

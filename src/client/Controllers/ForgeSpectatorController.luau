@@ -3,12 +3,12 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local ForgeAnimationConfig = require(ReplicatedStorage.Shared.Config.ForgeAnimationConfig)
 local ForgeStrikeConfig = require(ReplicatedStorage.Shared.Config.ForgeStrikeConfig)
 local StationConfig = require(ReplicatedStorage.Shared.Config.StationConfig)
 local PlayerAttributes = require(ReplicatedStorage.Shared.Constants.PlayerAttributes)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local PlotStations = require(ReplicatedStorage.Shared.Utils.PlotStations)
+local ForgeHammerSkin = require(script.Parent.Parent.Effects.ForgeHammerSkin)
 local ForgeSpectatorSession = require(script.Parent.Parent.Effects.ForgeSpectatorSession)
 local ForgeStation = require(script.Parent.Parent.Effects.ForgeStation)
 
@@ -24,12 +24,6 @@ local sessions: { [Player]: Session } = {}
 local connectionsByPlayer: { [Player]: { RBXScriptConnection } } = {}
 local stanceIds: { [Player]: any } = {}
 
-local function findHammerTemplate(): Instance?
-	local assets = ReplicatedStorage:FindFirstChild(ForgeAnimationConfig.AssetsFolderName)
-	local models = assets and assets:FindFirstChild(ForgeAnimationConfig.ModelsFolderName)
-	return models and models:FindFirstChild(ForgeStrikeConfig.HammerModelName)
-end
-
 local function endSession(player: Player)
 	local session = sessions[player]
 	sessions[player] = nil
@@ -42,11 +36,12 @@ local function beginSession(player: Player, weaponType: string, shapeStage: numb
 	local character = player.Character
 	local anvil = PlotStations.FindOwnedStation(player.UserId, StationConfig.ForgeModelName)
 	local anvilPart = anvil and ForgeStation.GetAnvilPart(anvil)
-	local hammer = findHammerTemplate()
+	local hammer = ForgeHammerSkin.CreateTemplate(player)
 	if character == nil or anvilPart == nil or hammer == nil then
 		return nil
 	end
 	local session = ForgeSpectatorSession.Start(character, anvilPart, hammer, weaponType, shapeStage)
+	hammer:Destroy()
 	sessions[player] = session
 	return session
 end

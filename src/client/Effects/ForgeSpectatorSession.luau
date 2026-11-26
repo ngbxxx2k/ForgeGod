@@ -16,6 +16,7 @@ local ForgeSparks = require(script.Parent.ForgeSparks)
 local ForgeStation = require(script.Parent.ForgeStation)
 local ForgeWeaponImpact = require(script.Parent.ForgeWeaponImpact)
 local RainbowWeapon = require(script.Parent.RainbowWeapon)
+local WeaponAssetPreloader = require(script.Parent.WeaponAssetPreloader)
 
 local BROKEN_STATE = "Broken"
 
@@ -44,6 +45,7 @@ export type Session = {
 	Rainbow: RainbowWeapon.Target?,
 	FrenzyEndsAt: number,
 	FrenzyConnection: RBXScriptConnection?,
+	PlaceToken: number,
 	IsActive: boolean,
 }
 
@@ -94,10 +96,8 @@ local function applyContact(session: Session)
 	session.ImpactPoint.CFrame = CFrame.new(ForgeStrikeConfig.ImpactPointOffset + Vector3.yAxis * height)
 end
 
-local function placeWeapon(session: Session, shapeStage: number)
+local function swapWeapon(session: Session, template: Model?)
 	clearWeapon(session)
-	session.ShapeStage = shapeStage
-	local template = WeaponModelFinder.Find(session.WeaponType, shapeStage)
 	if template then
 		session.Weapon = ForgeStation.PlaceWeapon(session.ForgePoint, template, getRuntimeFolder())
 	end
@@ -119,6 +119,26 @@ local function hit(session: Session)
 		session.Impact = ForgeWeaponImpact.Start(weapon, pivot)
 	end
 	ForgeImpactSound.Play(session.Sounds)
+end
+
+local function placeWeapon(session: Session, shapeStage: number, isAnnounced: boolean)
+	session.ShapeStage = shapeStage
+	session.PlaceToken += 1
+	local token = session.PlaceToken
+	local template = WeaponModelFinder.Find(session.WeaponType, shapeStage)
+	if template == nil or not isAnnounced then
+		swapWeapon(session, template)
+		return
+	end
+	WeaponAssetPreloader.WhenReady(template, function()
+		if not session.IsActive or session.PlaceToken ~= token then
+			return
+		end
+		swapWeapon(session, template)
+		if isAnnounced then
+			hit(session)
+		end
+	end)
 end
 
 local function stopFrenzy(session: Session)
@@ -169,12 +189,12 @@ local function land(session: Session, info: StrikeInfo)
 	end
 	if info.State == BROKEN_STATE then
 		ForgeBreakFx.Shatter(session.Weapon)
+		session.PlaceToken += 1
 		clearWeapon(session)
 		return
 	end
 	if info.ShapeStage ~= session.ShapeStage then
-		placeWeapon(session, info.ShapeStage)
-		hit(session)
+		placeWeapon(session, info.ShapeStage, true)
 	end
 	if info.IsNewMutation and info.Mutation then
 		ForgeMutationFx.StrikeWorld(session.AnvilPart, info.Mutation, session.Character)
@@ -210,9 +230,11 @@ function ForgeSpectatorSession.Start(
 		WeaponType = weaponType,
 		ShapeStage = shapeStage,
 		FrenzyEndsAt = 0,
+		PlaceToken = 0,
 		IsActive = true,
 	}
-	placeWeapon(session, shapeStage)
+	WeaponAssetPreloader.PreloadWeaponType(weaponType, shapeStage)
+	placeWeapon(session, shapeStage, false)
 	return session
 end
 

@@ -11,11 +11,6 @@ end
 local ShopColors = {}
 
 ShopColors.HeaderGradients = {
-	Ore = verticalGradient(
-		Color3.fromRGB(255, 120, 110),
-		Color3.fromRGB(225, 50, 50),
-		Color3.fromRGB(160, 25, 30)
-	),
 	Item = verticalGradient(
 		Color3.fromRGB(130, 235, 110),
 		Color3.fromRGB(60, 190, 70),

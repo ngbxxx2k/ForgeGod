@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlotAttributes = require(ReplicatedStorage.Shared.Constants.PlotAttributes)
+local HoldConfig = require(ReplicatedStorage.Shared.Config.HoldConfig)
 local PlotConfig = require(ReplicatedStorage.Shared.Config.PlotConfig)
 local PlotUpgradeConfig = require(ReplicatedStorage.Shared.Config.PlotUpgradeConfig)
 local WeaponModelFinder = require(ReplicatedStorage.Shared.Utils.WeaponModelFinder)
@@ -100,9 +101,18 @@ local function getDisplayKey(weapon: any?): string
 	}, "|")
 end
 
+local function getShaftOffset(model: Model, boxCFrame: CFrame): Vector3
+	local gripPoint = model:FindFirstChild(HoldConfig.WeaponGripPointName, true)
+	if not gripPoint or not gripPoint:IsA("Attachment") then
+		return Vector3.zero
+	end
+	local shaft = boxCFrame:PointToObjectSpace(gripPoint.WorldPosition)
+	return Vector3.new(shaft.X, 0, shaft.Z)
+end
+
 local function placeOnAnchor(model: Model, anchor: Attachment): number
 	local boxCFrame, size = model:GetBoundingBox()
-	local bottomToCenter = CFrame.new(0, size.Y / 2, 0)
+	local bottomToCenter = CFrame.new(Vector3.new(0, size.Y / 2, 0) - getShaftOffset(model, boxCFrame))
 	model:PivotTo(anchor.WorldCFrame * bottomToCenter * boxCFrame:ToObjectSpace(model:GetPivot()))
 	return size.Y
 end

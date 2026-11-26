@@ -4,6 +4,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local AssetIds = require(ReplicatedStorage.Shared.Constants.AssetIds)
+local ForgeUpgradeColors = require(ReplicatedStorage.Shared.Constants.ForgeUpgradeColors)
 local HudMessages = require(ReplicatedStorage.Shared.Constants.HudMessages)
 local PlotStations = require(ReplicatedStorage.Shared.Utils.PlotStations)
 local ShopZoneConfig = require(ReplicatedStorage.Shared.Config.ShopZoneConfig)
@@ -12,13 +14,14 @@ local HudButton = require(script.Parent.Parent.UI.Components.HudButton)
 local Toast = require(script.Parent.Parent.UI.Components.Toast)
 local ShopScreen = require(script.Parent.Parent.UI.Screens.ShopScreen)
 local ShopZoneController = require(script.Parent.ShopZoneController)
+local ForgeUpgradeZoneController = require(script.Parent.ForgeUpgradeZoneController)
 local CrucibleStance = require(script.Parent.CrucibleStance)
 local ForgeStance = require(script.Parent.ForgeStance)
 
 type ShopCategory = ShopScreen.ShopCategory
 
 local HOME_BUTTON_NAME = "HomeButton"
-local ORE_SHOP_BUTTON_NAME = "OreShopButton"
+local UPGRADE_SHOP_BUTTON_NAME = "OreShopButton"
 local ITEM_SHOP_BUTTON_NAME = "ItemShopButton"
 local ROOT_PART_NAME = "HumanoidRootPart"
 
@@ -57,21 +60,31 @@ end
 local function goHome()
 	local plot = PlotStations.FindOwnedPlot(localPlayer.UserId)
 	if plot == nil then
-		Toast.Show(HudMessages.TravelTitle, HudMessages.NoPlot)
+		Toast.Error(HudMessages.NoPlot)
 		return
 	end
 	local stand = plot:GetPivot() * TravelConfig.HomeStandOffset
 	teleportTo(CFrame.lookAt(stand.Position, stand.Position + plot:GetPivot().LookVector))
 end
 
-local function goToShop(category: ShopCategory)
-	local center = ShopZoneController.GetZoneCenter(category)
-	if center == nil then
-		return
-	end
+local function goToZone(center: CFrame)
 	local distance = ShopZoneConfig.Radius + TravelConfig.ShopStandGap
 	local stand = center * CFrame.new(0, 0, -distance)
 	teleportTo(CFrame.lookAt(stand.Position, Vector3.new(center.X, stand.Y, center.Z)))
+end
+
+local function goToShop(category: ShopCategory)
+	local center = ShopZoneController.GetZoneCenter(category)
+	if center then
+		goToZone(center)
+	end
+end
+
+local function goToUpgradeShop()
+	local center = ForgeUpgradeZoneController.GetZoneCenter()
+	if center then
+		goToZone(center)
+	end
 end
 
 function TravelController.Init()
@@ -81,9 +94,12 @@ function TravelController.Init()
 	isInitialized = true
 
 	HudButton.Bind(HOME_BUTTON_NAME, goHome)
-	HudButton.Bind(ORE_SHOP_BUTTON_NAME, function()
-		goToShop("Ore")
-	end)
+	HudButton.Bind(UPGRADE_SHOP_BUTTON_NAME, goToUpgradeShop)
+	HudButton.SetStyle(UPGRADE_SHOP_BUTTON_NAME, {
+		Text = HudMessages.UpgradeShopLabel,
+		Image = AssetIds.Icons.UpgradeShop,
+		Gradient = ForgeUpgradeColors.HudButtonGradient,
+	})
 	HudButton.Bind(ITEM_SHOP_BUTTON_NAME, function()
 		goToShop("Item")
 	end)

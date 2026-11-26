@@ -2,6 +2,7 @@
 
 export type UpgradeStep = {
 	CoinPrice: number,
+	RobuxPrice: number,
 	ProductId: number,
 }
 
@@ -15,14 +16,14 @@ local PlotUpgradeConfig = {}
 PlotUpgradeConfig.BaseSlots = 4
 PlotUpgradeConfig.MaxSlots = 10
 
--- PLACEHOLDER: giá coins mỗi lần nâng cấp; ProductId = 0 nghĩa là chưa tạo Developer Product
+-- PLACEHOLDER: giá coins mỗi lần nâng cấp
 PlotUpgradeConfig.Steps = {
-	{ CoinPrice = 1_000_000, ProductId = 0 },
-	{ CoinPrice = 2_500_000, ProductId = 0 },
-	{ CoinPrice = 5_000_000, ProductId = 0 },
-	{ CoinPrice = 10_000_000, ProductId = 0 },
-	{ CoinPrice = 25_000_000, ProductId = 0 },
-	{ CoinPrice = 50_000_000, ProductId = 0 },
+	{ CoinPrice = 100_000, RobuxPrice = 9, ProductId = 3736223079 },
+	{ CoinPrice = 25_000_000, RobuxPrice = 29, ProductId = 3736223095 },
+	{ CoinPrice = 5e9, RobuxPrice = 59, ProductId = 3736223111 },
+	{ CoinPrice = 5e12, RobuxPrice = 119, ProductId = 3736223185 },
+	{ CoinPrice = 1e16, RobuxPrice = 229, ProductId = 3736223198 },
+	{ CoinPrice = 5e18, RobuxPrice = 299, ProductId = 3736223207 },
 } :: { UpgradeStep }
 
 -- Màu hàng rào theo level plot (phần tử thứ i = level i): cột + nắp cột dùng Post (đậm), thanh ngang dùng Rail (nhạt)

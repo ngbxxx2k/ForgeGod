@@ -163,7 +163,6 @@ function ForgeMutationFx.Strike(anvilPart: BasePart?, mutationId: string)
 	CameraShake.Kick(config.ShakeStrength)
 	flash(color.Glow)
 	burst(target, color.Glow)
-	playGlobalSound(config.CrackSoundIds, config.CrackVolume)
 	playGlobalSound(config.ThunderSoundIds, config.ThunderVolume)
 end
 
@@ -176,7 +175,6 @@ function ForgeMutationFx.StrikeWorld(anvilPart: BasePart?, mutationId: string, i
 	local target = getStrikePoint(anvilPart, ignore)
 	drawBolts(buildStyle(color), target, nil)
 	burst(target, color.Glow)
-	playSoundAt(config.CrackSoundIds, config.CrackVolume, target)
 	playSoundAt(config.ThunderSoundIds, config.ThunderVolume, target)
 end
 

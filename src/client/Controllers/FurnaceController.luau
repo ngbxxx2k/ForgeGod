@@ -170,7 +170,7 @@ local function startSmelting()
 		return
 	end
 	if isInventoryFull() then
-		Toast.Show(FurnaceMessages.ToastTitle, FurnaceMessages.Reasons.InventoryFull)
+		Toast.Error(FurnaceMessages.Reasons.InventoryFull)
 		return
 	end
 	local remotes = ReplicatedStorage:FindFirstChild(REMOTES_FOLDER_NAME)
@@ -210,7 +210,7 @@ local function onSmeltResult(ok: boolean, reason: string?, weapon: any)
 		ForgeRevealController.Cancel()
 		restorePendingSelection()
 		local message = reason and (FurnaceMessages.Reasons :: any)[reason]
-		Toast.Show(FurnaceMessages.ToastTitle, message or FurnaceMessages.UnknownError)
+		Toast.Error(message or FurnaceMessages.UnknownError)
 		return
 	end
 	pendingSelection = nil
@@ -219,7 +219,7 @@ local function onSmeltResult(ok: boolean, reason: string?, weapon: any)
 		return
 	end
 	local text = string.format(FurnaceMessages.ResultFormat, result.WeaponType, result.Rarity)
-	Toast.Show(FurnaceMessages.ToastTitle, text)
+	Toast.Success(text)
 end
 
 local function connectResultRemote()
@@ -268,6 +268,10 @@ end
 function FurnaceController.Close()
 	FurnaceScreen.SetVisible(false)
 	CrucibleStance.Exit()
+end
+
+function FurnaceController.GetSelectedCount(): number
+	return #selectedIds
 end
 
 function FurnaceController.IsSkipping(): boolean

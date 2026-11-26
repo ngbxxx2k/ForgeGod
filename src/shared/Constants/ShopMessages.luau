@@ -10,14 +10,13 @@ local ShopMessages = {}
 ShopMessages.PurchaseSuccess = "Purchase complete!"
 ShopMessages.NotificationTitle = "Shop"
 ShopMessages.Restocking = "Restocking..."
-ShopMessages.RestockedNotice = "Ore Shop & Item Shop restocked!"
+ShopMessages.RestockedNotice = "Item Shop restocked!"
+ShopMessages.PaidRestockNotice = "Your Item Shop was restocked until the next global restock!"
+ShopMessages.RestockButtonFormat = "RESTOCK \u{E002}%s"
+ShopMessages.RobuxPriceFormat = "\u{E002} %s"
 ShopMessages.UnknownError = "Something went wrong."
 
 ShopMessages.Categories = {
-	Ore = {
-		RestockFormat = "New ores in %d:%02d",
-		OddsTitle = "Stock ores",
-	},
 	Item = {
 		RestockFormat = "New items in %d:%02d",
 		OddsTitle = "Stock items",
@@ -34,6 +33,8 @@ ShopMessages.Reasons = {
 	NotLoaded = "Your data is still loading, please wait.",
 	RateLimited = "You are buying too fast, slow down.",
 	TooFar = "Step into the shop circle to buy.",
+	NotAvailable = "Robux purchases are coming soon!",
+	PromptFailed = "Could not open the purchase window.",
 }
 
 return ShopMessages

@@ -10,9 +10,9 @@ local RevealSound = {}
 
 local random = Random.new()
 
-function RevealSound.Play(spec: SoundSpec, parent: Instance, speedMultiplier: number?)
+function RevealSound.Play(spec: SoundSpec, parent: Instance, speedMultiplier: number?): Sound?
 	if spec.SoundId == "" then
-		return
+		return nil
 	end
 	local sound = Instance.new("Sound")
 	sound.SoundId = spec.SoundId
@@ -23,18 +23,19 @@ function RevealSound.Play(spec: SoundSpec, parent: Instance, speedMultiplier: nu
 	end)
 	sound.Parent = parent
 	sound:Play()
+	return sound
 end
 
-function RevealSound.PlayRandom(soundIds: { string }, volume: number, parent: Instance, speed: number?)
+function RevealSound.PlayRandom(soundIds: { string }, volume: number, parent: Instance, speed: number?): Sound?
 	if #soundIds == 0 then
-		return
+		return nil
 	end
 	local spec: SoundSpec = {
 		SoundId = soundIds[random:NextInteger(1, #soundIds)],
 		Volume = volume,
 		PlaybackSpeed = speed or 1,
 	}
-	RevealSound.Play(spec, parent)
+	return RevealSound.Play(spec, parent)
 end
 
 return RevealSound

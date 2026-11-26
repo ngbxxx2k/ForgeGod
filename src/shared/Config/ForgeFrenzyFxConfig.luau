@@ -6,6 +6,8 @@ local ForgeFrenzyFxConfig = {}
 
 -- Màu cầu vồng: số lần dải màu trôi qua một điểm mỗi giây
 ForgeFrenzyFxConfig.HueSpeed = 0.8
+-- Tên Sound trong ReplicatedStorage.Assets.Sounds, phát một lần khi Frenzy bắt đầu
+ForgeFrenzyFxConfig.StartSoundName = "ForgeFrenzy"
 ForgeFrenzyFxConfig.Saturation = 1
 ForgeFrenzyFxConfig.Brightness = 1
 -- Số mốc màu trong dải cầu vồng (gradient màn hình, tia lửa)

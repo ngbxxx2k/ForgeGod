@@ -1,6 +1,7 @@
 --!strict
 
 local BuffConfig = require(script.Parent.Parent.Config.BuffConfig)
+local WeaponItemConfig = require(script.Parent.Parent.Config.WeaponItemConfig)
 local AssetIds = require(script.Parent.AssetIds)
 
 export type ItemVisual = {
@@ -24,18 +25,26 @@ local ItemVisuals: { [string]: ItemVisual } = {
 	-- PLACEHOLDER: điền "rbxassetid://..." cho icon buff (dùng chung Shop, Backpack, icon buff)
 	BlessingPotion = { Image = AssetIds.Icons.BlessingPotion },
 	LuckPotion = { Image = AssetIds.Icons.LuckPotion },
-	Talisman = {},
-	MerchantPotion = { Image = AssetIds.Icons.MerchantPotion },
+	Talisman = { Image = AssetIds.Icons.Talisman },
 	MutationCatalyst = { Image = AssetIds.Icons.MutationCatalyst },
-	AlloyFluxPotion = {},
-	StormPotion = {},
+	AlloyFluxPotion = { Image = AssetIds.Icons.AlloyFluxPotion },
+	StormPotion = { Image = AssetIds.Icons.StormPotion },
 	MutationEraser = { Image = AssetIds.Icons.MutationEraser },
+	AngelHeart = { Image = AssetIds.Icons.AngelHeart },
 }
 
+local function setRarity(itemId: string, rarity: string)
+	local visual = ItemVisuals[itemId] or {}
+	visual.RarityLabel = rarity
+	ItemVisuals[itemId] = visual
+end
+
 for _, buff in BuffConfig.Buffs do
-	local visual = ItemVisuals[buff.Id] or {}
-	visual.RarityLabel = buff.Rarity
-	ItemVisuals[buff.Id] = visual
+	setRarity(buff.Id, buff.Rarity)
+end
+
+for _, item in WeaponItemConfig.Items do
+	setRarity(item.Id, item.Rarity)
 end
 
 return ItemVisuals

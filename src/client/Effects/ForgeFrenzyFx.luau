@@ -64,6 +64,7 @@ function ForgeFrenzyFx.Start(frenzyEndsAt: number)
 	end
 	ForgeStrikeFx.SetRainbowSparks(true)
 	ForgeResultFx.SetRainbowGlow(true)
+	ForgeResultFx.PlaySound(ForgeFrenzyFxConfig.StartSoundName)
 	CameraShake.SetSustain(SUSTAIN_STRENGTH)
 	FrenzyScreenFlash.Pulse()
 	CameraShake.Kick(KICK_STRENGTH)

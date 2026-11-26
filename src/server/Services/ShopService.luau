@@ -17,6 +17,7 @@ local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
 local ShopRange = require(script.Parent.Parent.Security.ShopRange)
+local ShopStockRoller = require(script.Parent.Parent.Internal.ShopStockRoller)
 
 local ShopRestockTable = require(
 	ServerStorage:WaitForChild("LootTables"):WaitForChild("ShopRestockTable")
@@ -29,12 +30,16 @@ local isInitialized = false
 local notifyBuyResult: RemoteEvent? = nil
 local notifyShopState: RemoteEvent? = nil
 
--- Tồn kho hiện tại của server: [itemId] = số lượng còn lại.
+-- Tồn kho chung của server: [itemId] = số lượng còn lại.
 local currentStock: { [string]: number } = {}
 
 -- Chu kỳ restock hiện tại (mốc os.time() chia RestockInterval).
 -- Client dùng giá trị này tự tính đếm ngược, không cần server broadcast liên tục.
 local currentCycle = 0
+
+local personalStocks: { [Player]: { [string]: number } } = {}
+local paidRestockCounts: { [Player]: number } = {}
+local rng = Random.new()
 
 local function buildOdds(): { [string]: number }
 	local odds = {}
@@ -44,34 +49,54 @@ local function buildOdds(): { [string]: number }
 	return odds
 end
 
-local function buildStatePayload(): { [string]: any }
+local function getStockFor(player: Player): { [string]: number }
+	return personalStocks[player] or currentStock
+end
+
+local function buildStatePayload(player: Player): { [string]: any }
 	return {
-		Stock = table.clone(currentStock),
+		Stock = table.clone(getStockFor(player)),
 		Cycle = currentCycle,
 		RestockInterval = ShopConfig.RestockInterval,
 		Odds = buildOdds(),
+		PaidRestockCount = paidRestockCounts[player] or 0,
 	}
 end
 
--- Gửi trạng thái shop cho một người chơi.
 function ShopService.SendShopState(player: Player)
-	if notifyShopState ~= nil then
-		notifyShopState:FireClient(player, buildStatePayload())
+	if notifyShopState ~= nil and player.Parent ~= nil then
+		notifyShopState:FireClient(player, buildStatePayload(player))
 	end
 end
 
--- Broadcast trạng thái shop cho mọi người chơi.
 function ShopService.BroadcastShopState()
-	if notifyShopState ~= nil then
-		notifyShopState:FireAllClients(buildStatePayload())
+	for _, player in Players:GetPlayers() do
+		ShopService.SendShopState(player)
 	end
 end
 
--- Thay tồn kho shop (do ShopRestockSystem gọi khi đổi chu kỳ).
+local function broadcastSharedStock()
+	for _, player in Players:GetPlayers() do
+		if personalStocks[player] == nil then
+			ShopService.SendShopState(player)
+		end
+	end
+end
+
 function ShopService.SetStock(stock: { [string]: number }, cycleIndex: number)
 	currentStock = table.clone(stock)
 	currentCycle = cycleIndex
+	table.clear(personalStocks)
 	ShopService.BroadcastShopState()
+end
+
+function ShopService.ApplyPaidRestock(player: Player)
+	if player.Parent == nil then
+		return
+	end
+	personalStocks[player] = ShopStockRoller.Roll(rng)
+	paidRestockCounts[player] = (paidRestockCounts[player] or 0) + 1
+	ShopService.SendShopState(player)
 end
 
 -- Mua hàng: kiểm tra hợp lệ + đủ tiền + còn hàng TRƯỚC, rồi mới đổi
@@ -96,7 +121,8 @@ function ShopService.Buy(player: Player, itemId: string, amount: number): (boole
 		return false, "TooFar"
 	end
 
-	local inStock = currentStock[itemId] or 0
+	local stock = getStockFor(player)
+	local inStock = stock[itemId] or 0
 	if inStock < amount then
 		return false, "OutOfStock"
 	end
@@ -125,13 +151,16 @@ function ShopService.Buy(player: Player, itemId: string, amount: number): (boole
 		return false, reasonPay
 	end
 
-	currentStock[itemId] = inStock - amount
-	if currentStock[itemId] <= 0 then
-		currentStock[itemId] = nil
+	stock[itemId] = inStock - amount
+	if stock[itemId] <= 0 then
+		stock[itemId] = nil
 	end
 
-	-- Tồn kho vừa đổi: báo toàn server để UI cập nhật.
-	ShopService.BroadcastShopState()
+	if stock == currentStock then
+		broadcastSharedStock()
+	else
+		ShopService.SendShopState(player)
+	end
 	return true
 end
 
@@ -160,6 +189,11 @@ end
 -- Gửi trạng thái shop cho người chơi mới vào để UI hiển thị đúng tồn kho.
 local function handlePlayerAdded(player: Player)
 	ShopService.SendShopState(player)
+end
+
+local function handlePlayerRemoving(player: Player)
+	personalStocks[player] = nil
+	paidRestockCounts[player] = nil
 end
 
 function ShopService.Init()
@@ -191,6 +225,7 @@ function ShopService.Init()
 	requestBuy.OnServerEvent:Connect(onRequestBuy)
 
 	Players.PlayerAdded:Connect(handlePlayerAdded)
+	Players.PlayerRemoving:Connect(handlePlayerRemoving)
 	for _, player in Players:GetPlayers() do
 		task.spawn(handlePlayerAdded, player)
 	end

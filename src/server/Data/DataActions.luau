@@ -11,8 +11,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local configFolder = sharedFolder:WaitForChild("Config")
 local WeaponWeightConfig = require(configFolder:WaitForChild("WeaponWeightConfig"))
+local WeaponItemConfig = require(configFolder:WaitForChild("WeaponItemConfig"))
+local DigToolConfig = require(configFolder:WaitForChild("DigToolConfig"))
+local ForgeUpgradeConfig = require(configFolder:WaitForChild("ForgeUpgradeConfig"))
+local SpinConfig = require(configFolder:WaitForChild("SpinConfig"))
+local IndexRewardConfig = require(configFolder:WaitForChild("IndexRewardConfig"))
+local TutorialConfig = require(configFolder:WaitForChild("TutorialConfig"))
+local IndexCollection = require(sharedFolder:WaitForChild("Utils"):WaitForChild("IndexCollection"))
+local IndexKey = require(sharedFolder:WaitForChild("Utils"):WaitForChild("IndexKey"))
 local PlotLevel = require(sharedFolder:WaitForChild("Utils"):WaitForChild("PlotLevel"))
 local WeaponIncome = require(sharedFolder:WaitForChild("Utils"):WaitForChild("WeaponIncome"))
+local WeaponItemTarget = require(sharedFolder:WaitForChild("Utils"):WaitForChild("WeaponItemTarget"))
 
 local DataTemplate = require(script.Parent.DataTemplate)
 local DataService = require(script.Parent.DataService)
@@ -40,6 +49,10 @@ end
 -- Chuỗi hợp lệ: kiểu string, rỗng được bỏ, không chứa byte UTF-8 lỗi.
 local function isValidString(value: any): boolean
 	return type(value) == "string" and value ~= "" and utf8.len(value) ~= nil
+end
+
+local function clampCoins(value: number): number
+	return math.min(math.floor(value), Limits.MaxCoins)
 end
 
 -- ItemId tồn tại trong registry?
@@ -104,6 +117,16 @@ local function isValidWeapon(weapon: any): boolean
 		and type(weapon.Recipe) == "table"
 		and (weapon.ValueHistory == nil or type(weapon.ValueHistory) == "table")
 		and (weapon.IsLocked == nil or type(weapon.IsLocked) == "boolean")
+end
+
+local function recordIndex(data: any, weapon: any)
+	if not isValidString(weapon.WeaponType) then
+		return
+	end
+	if data.Index == nil then
+		data.Index = {}
+	end
+	data.Index[IndexKey.Build(weapon.Mutation, weapon.WeaponType, weapon.ShapeStage)] = true
 end
 
 local function updateHighestStats(data: any, weapon: any)
@@ -171,8 +194,8 @@ function DataActions.TryAddCoins(player: Player, amount: number): (boolean, stri
 	if data == nil then
 		return false, "NotLoaded"
 	end
-	data.Coins = math.floor(data.Coins + amount)
-	data.Stats.TotalCoinsEarned += amount
+	data.Coins = clampCoins(data.Coins + amount)
+	data.Stats.TotalCoinsEarned = clampCoins(data.Stats.TotalCoinsEarned + amount)
 	LeaderboardService.SetCoins(player, data.Coins)
 	notifyChanged(player)
 	return true
@@ -255,6 +278,7 @@ function DataActions.TryAddWeapon(player: Player, weapon: any): (boolean, string
 	end
 	data.Weapons[weapon.Id] = weapon
 	updateHighestStats(data, weapon)
+	recordIndex(data, weapon)
 	notifyChanged(player)
 	return true
 end
@@ -276,6 +300,7 @@ function DataActions.TryUpdateWeapon(player: Player, weapon: any): (boolean, str
 		table.remove(data.Equipped, equippedIndex)
 	end
 	updateHighestStats(data, weapon)
+	recordIndex(data, weapon)
 	notifyChanged(player)
 	return true
 end
@@ -289,6 +314,32 @@ function DataActions.TryRecordForge(player: Player, isBroken: boolean): (boolean
 	if isBroken then
 		data.Stats.TotalBroken += 1
 	end
+	notifyChanged(player)
+	return true
+end
+
+-- Nhận quà Index: kiểm tra bộ sưu tập đủ và chưa nhận TRƯỚC, rồi cộng quặng và ghi đã nhận cùng một bước.
+function DataActions.TryClaimIndexReward(player: Player, tabId: string, rarity: string): (boolean, string?)
+	local reward = IndexRewardConfig.ByRarity[rarity]
+	if not IndexCollection.IsValidTab(tabId) or reward == nil or not isValidItemId(reward.ItemId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if type(data.IndexRewards) ~= "table" then
+		data.IndexRewards = {}
+	end
+	local rewardKey = IndexCollection.BuildRewardKey(tabId, rarity)
+	if data.IndexRewards[rewardKey] == true then
+		return false, "AlreadyClaimed"
+	end
+	if not IndexCollection.IsComplete(data.Index or {}, tabId, rarity) then
+		return false, "CollectionIncomplete"
+	end
+	data.IndexRewards[rewardKey] = true
+	data.Items[reward.ItemId] = (data.Items[reward.ItemId] or 0) + reward.Amount
 	notifyChanged(player)
 	return true
 end
@@ -345,8 +396,8 @@ function DataActions.TrySellWeapon(
 		return false, "WeaponLocked"
 	end
 	data.Weapons[weaponId] = nil
-	data.Coins = math.floor(data.Coins + price)
-	data.Stats.TotalCoinsEarned += price
+	data.Coins = clampCoins(data.Coins + price)
+	data.Stats.TotalCoinsEarned = clampCoins(data.Stats.TotalCoinsEarned + price)
 	LeaderboardService.SetCoins(player, data.Coins)
 	notifyChanged(player)
 	return true
@@ -391,8 +442,8 @@ function DataActions.TrySellWeapons(
 	for weaponId in prices do
 		data.Weapons[weaponId] = nil
 	end
-	data.Coins = math.floor(data.Coins + total)
-	data.Stats.TotalCoinsEarned += total
+	data.Coins = clampCoins(data.Coins + total)
+	data.Stats.TotalCoinsEarned = clampCoins(data.Stats.TotalCoinsEarned + total)
 	LeaderboardService.SetCoins(player, data.Coins)
 	notifyChanged(player)
 	return true, nil, total
@@ -419,8 +470,8 @@ function DataActions.TrySellItem(
 		return false, "NotEnoughItems"
 	end
 	data.Items[itemId] = if current - amount > 0 then current - amount else nil
-	data.Coins = math.floor(data.Coins + price)
-	data.Stats.TotalCoinsEarned += price
+	data.Coins = clampCoins(data.Coins + price)
+	data.Stats.TotalCoinsEarned = clampCoins(data.Stats.TotalCoinsEarned + price)
 	LeaderboardService.SetCoins(player, data.Coins)
 	notifyChanged(player)
 	return true
@@ -562,6 +613,273 @@ function DataActions.TryBuyLoadoutSlot(player: Player): (boolean, string?)
 	return true
 end
 
+local function getOwnedDigTiers(data: any, toolId: string): { number }
+	if type(data.OwnedDigTiers) ~= "table" then
+		data.OwnedDigTiers = {}
+	end
+	if type(data.OwnedDigTiers[toolId]) ~= "table" then
+		data.OwnedDigTiers[toolId] = { DigToolConfig.MinTier }
+	end
+	return data.OwnedDigTiers[toolId]
+end
+
+local function ownsDigTier(data: any, toolId: string, tierIndex: number): boolean
+	return tierIndex == DigToolConfig.MinTier or table.find(getOwnedDigTiers(data, toolId), tierIndex) ~= nil
+end
+
+local function equipDigTier(data: any, toolId: string, tierIndex: number)
+	if type(data.DigTools) ~= "table" then
+		data.DigTools = {}
+	end
+	data.DigTools[toolId] = tierIndex
+end
+
+local function unlockDigTier(data: any, toolId: string, tierIndex: number)
+	local owned = getOwnedDigTiers(data, toolId)
+	if table.find(owned, tierIndex) == nil then
+		table.insert(owned, tierIndex)
+		table.sort(owned)
+	end
+	equipDigTier(data, toolId, tierIndex)
+end
+
+-- Bậc máy dò / xẻng đang trang bị (1 = bậc mặc định), luôn là bậc đã sở hữu.
+function DataActions.GetDigToolTier(player: Player, toolId: string): number?
+	local data = DataService.GetData(player)
+	if data == nil or DigToolConfig.Tracks[toolId] == nil then
+		return nil
+	end
+	local tiers = data.DigTools or {}
+	local equipped = DigToolConfig.ClampTier(toolId, tiers[toolId])
+	return if ownsDigTier(data, toolId, equipped) then equipped else DigToolConfig.MinTier
+end
+
+-- Đã sở hữu đúng bậc máy dò / xẻng này chưa (bậc 1 luôn có).
+function DataActions.OwnsDigToolTier(player: Player, toolId: string, tierIndex: number): boolean
+	local data = DataService.GetData(player)
+	if data == nil or DigToolConfig.GetTier(toolId, tierIndex) == nil then
+		return false
+	end
+	return ownsDigTier(data, toolId, tierIndex)
+end
+
+-- Mua một bậc máy dò / xẻng bằng coins (chỉ mở khoá đúng bậc đó), tự trang bị bậc mới.
+function DataActions.TryBuyDigToolTier(player: Player, toolId: string, tierIndex: number): (boolean, string?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	local tier = DigToolConfig.GetTier(toolId, tierIndex)
+	if tier == nil then
+		return false, "InvalidRequest"
+	end
+	if ownsDigTier(data, toolId, tierIndex) then
+		return false, "AlreadyOwned"
+	end
+	if data.Coins < tier.CoinPrice then
+		return false, "NotEnoughCoins"
+	end
+	data.Coins = math.floor(data.Coins - tier.CoinPrice)
+	unlockDigTier(data, toolId, tierIndex)
+	LeaderboardService.SetCoins(player, data.Coins)
+	notifyChanged(player)
+	return true
+end
+
+-- Cấp đúng một bậc máy dò / xẻng cho giao dịch Robux, ghi PurchaseId để không cấp trùng.
+function DataActions.TryGrantDigToolTier(
+	player: Player,
+	toolId: string,
+	tierIndex: number,
+	purchaseId: string
+): (boolean, string?)
+	if DigToolConfig.GetTier(toolId, tierIndex) == nil or not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if table.find(data.ProcessedPurchases, purchaseId) then
+		return true
+	end
+	if not ownsDigTier(data, toolId, tierIndex) then
+		unlockDigTier(data, toolId, tierIndex)
+	end
+	recordPurchase(data, purchaseId)
+	notifyChanged(player)
+	return true
+end
+
+-- Trang bị một bậc máy dò / xẻng đã sở hữu.
+function DataActions.TryEquipDigToolTier(player: Player, toolId: string, tierIndex: number): (boolean, string?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if DigToolConfig.GetTier(toolId, tierIndex) == nil then
+		return false, "InvalidRequest"
+	end
+	if not ownsDigTier(data, toolId, tierIndex) then
+		return false, "NotOwned"
+	end
+	equipDigTier(data, toolId, tierIndex)
+	notifyChanged(player)
+	return true
+end
+
+local function getForgeTable(data: any, fieldName: string): { [string]: any }
+	if type(data[fieldName]) ~= "table" then
+		data[fieldName] = {}
+	end
+	return data[fieldName]
+end
+
+local function getOwnedForgeTiers(data: any, trackId: string): { number }
+	local ownedTiers = getForgeTable(data, "OwnedForgeTiers")
+	if type(ownedTiers[trackId]) ~= "table" then
+		ownedTiers[trackId] = { ForgeUpgradeConfig.MinTier }
+	end
+	return ownedTiers[trackId]
+end
+
+local function ownsForgeTier(data: any, trackId: string, tierIndex: number): boolean
+	return tierIndex == ForgeUpgradeConfig.MinTier
+		or table.find(getOwnedForgeTiers(data, trackId), tierIndex) ~= nil
+end
+
+local function unlockForgeTier(data: any, trackId: string, tierIndex: number)
+	local owned = getOwnedForgeTiers(data, trackId)
+	if table.find(owned, tierIndex) == nil then
+		table.insert(owned, tierIndex)
+		table.sort(owned)
+	end
+	getForgeTable(data, "ForgeSkins")[trackId] = tierIndex
+end
+
+-- Đã sở hữu đúng bậc đe / búa này chưa (bậc 1 luôn có).
+function DataActions.OwnsForgeToolTier(player: Player, trackId: string, tierIndex: number): boolean
+	local data = DataService.GetData(player)
+	if data == nil or ForgeUpgradeConfig.GetTier(trackId, tierIndex) == nil then
+		return false
+	end
+	return ownsForgeTier(data, trackId, tierIndex)
+end
+
+-- Bậc đe / búa đã sở hữu có may mắn cao nhất (1 = bậc mặc định).
+function DataActions.GetBestForgeToolTier(player: Player, trackId: string): number?
+	local data = DataService.GetData(player)
+	if data == nil or ForgeUpgradeConfig.Tracks[trackId] == nil then
+		return nil
+	end
+	local best, bestLuck = ForgeUpgradeConfig.MinTier, -math.huge
+	for _, tierIndex in getOwnedForgeTiers(data, trackId) do
+		local tier = ForgeUpgradeConfig.GetTier(trackId, tierIndex)
+		if tier and tier.Luck > bestLuck then
+			best, bestLuck = tierIndex, tier.Luck
+		end
+	end
+	return best
+end
+
+-- Bậc texture đe / búa đang dùng, phải là bậc đã sở hữu.
+function DataActions.GetForgeSkin(player: Player, trackId: string): number?
+	local data = DataService.GetData(player)
+	if data == nil or ForgeUpgradeConfig.Tracks[trackId] == nil then
+		return nil
+	end
+	local skin = ForgeUpgradeConfig.ClampTier(trackId, getForgeTable(data, "ForgeSkins")[trackId])
+	return if ownsForgeTier(data, trackId, skin) then skin else ForgeUpgradeConfig.MinTier
+end
+
+-- Mua một bậc đe / búa bằng coins (chỉ mở khoá đúng bậc đó), tự đổi texture sang bậc mới.
+function DataActions.TryBuyForgeToolTier(player: Player, trackId: string, tierIndex: number): (boolean, string?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	local tier = ForgeUpgradeConfig.GetTier(trackId, tierIndex)
+	if tier == nil then
+		return false, "InvalidRequest"
+	end
+	if ownsForgeTier(data, trackId, tierIndex) then
+		return false, "AlreadyOwned"
+	end
+	if data.Coins < tier.CoinPrice then
+		return false, "NotEnoughCoins"
+	end
+	data.Coins = math.floor(data.Coins - tier.CoinPrice)
+	unlockForgeTier(data, trackId, tierIndex)
+	LeaderboardService.SetCoins(player, data.Coins)
+	notifyChanged(player)
+	return true
+end
+
+-- Cấp đúng một bậc đe / búa cho giao dịch Robux, ghi PurchaseId để không cấp trùng.
+function DataActions.TryGrantForgeToolTier(
+	player: Player,
+	trackId: string,
+	tierIndex: number,
+	purchaseId: string
+): (boolean, string?)
+	if ForgeUpgradeConfig.GetTier(trackId, tierIndex) == nil or not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if table.find(data.ProcessedPurchases, purchaseId) then
+		return true
+	end
+	if not ownsForgeTier(data, trackId, tierIndex) then
+		unlockForgeTier(data, trackId, tierIndex)
+	end
+	recordPurchase(data, purchaseId)
+	notifyChanged(player)
+	return true
+end
+
+-- Chọn texture đe / búa trong các bậc đã sở hữu.
+function DataActions.TrySetForgeSkin(player: Player, trackId: string, tierIndex: number): (boolean, string?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if ForgeUpgradeConfig.GetTier(trackId, tierIndex) == nil then
+		return false, "InvalidRequest"
+	end
+	if not ownsForgeTier(data, trackId, tierIndex) then
+		return false, "NotOwned"
+	end
+	getForgeTable(data, "ForgeSkins")[trackId] = tierIndex
+	notifyChanged(player)
+	return true
+end
+
+-- Cộng quặng / vật phẩm cho giao dịch Robux, ghi PurchaseId để không cộng trùng.
+function DataActions.TryGrantPurchasedItem(
+	player: Player,
+	itemId: string,
+	amount: number,
+	purchaseId: string
+): (boolean, string?)
+	if not isValidItemId(itemId) or not isValidCount(amount, 1, math.huge) or not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if table.find(data.ProcessedPurchases, purchaseId) then
+		return true
+	end
+	data.Items[itemId] = (data.Items[itemId] or 0) + amount
+	recordPurchase(data, purchaseId)
+	notifyChanged(player)
+	return true
+end
+
 -- Cộng 1 ô Loadout cho giao dịch Robux, ghi PurchaseId để không cộng trùng.
 function DataActions.TryGrantLoadoutSlot(player: Player, purchaseId: string): (boolean, string?)
 	local data = DataService.GetData(player)
@@ -582,6 +900,168 @@ function DataActions.TryGrantLoadoutSlot(player: Player, purchaseId: string): (b
 	recordPurchase(data, purchaseId)
 	notifyChanged(player)
 	return true
+end
+
+-- Nâng sức chứa kho vũ khí lên slots cho giao dịch Robux, ghi PurchaseId để không cấp trùng.
+function DataActions.TryGrantStorageSlots(player: Player, slots: number, purchaseId: string): (boolean, string?)
+	if not isValidCount(slots, 1, math.huge) or not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if table.find(data.ProcessedPurchases, purchaseId) then
+		return true
+	end
+	data.Capacity.Items = math.max(data.Capacity.Items, math.floor(slots))
+	recordPurchase(data, purchaseId)
+	notifyChanged(player)
+	return true
+end
+
+-- Sức chứa kho vũ khí hiện tại.
+function DataActions.GetStorageSlots(player: Player): number?
+	local data = DataService.GetData(player)
+	return if data then data.Capacity.Items else nil
+end
+
+-- Cộng coins cho giao dịch Robux (gói tiền), ghi PurchaseId để không cộng trùng.
+function DataActions.TryGrantPurchasedCoins(player: Player, amount: number, purchaseId: string): (boolean, string?)
+	if not isValidCount(amount, 1, math.huge) or not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if table.find(data.ProcessedPurchases, purchaseId) then
+		return true
+	end
+	data.Coins = clampCoins(data.Coins + amount)
+	recordPurchase(data, purchaseId)
+	LeaderboardService.SetCoins(player, data.Coins)
+	notifyChanged(player)
+	return true
+end
+
+-- Ghi PurchaseId vào dữ liệu người mua (dùng khi quà được cấp cho người khác).
+function DataActions.TryRecordPurchase(player: Player, purchaseId: string): (boolean, string?)
+	if not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if not table.find(data.ProcessedPurchases, purchaseId) then
+		recordPurchase(data, purchaseId)
+	end
+	return true
+end
+
+-- Cấp pass được tặng, ghi PurchaseId để không cấp trùng.
+function DataActions.TryGrantGiftedPass(player: Player, passId: string, purchaseId: string): (boolean, string?)
+	if not isValidString(passId) or not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if table.find(data.ProcessedPurchases, purchaseId) then
+		return true
+	end
+	if type(data.GiftedPasses) ~= "table" then
+		data.GiftedPasses = {}
+	end
+	data.GiftedPasses[passId] = true
+	recordPurchase(data, purchaseId)
+	notifyChanged(player)
+	return true
+end
+
+local function getSpinState(data: any): { Tokens: number, LastFreeAt: number }
+	if type(data.Spin) ~= "table" then
+		data.Spin = { Tokens = 0, LastFreeAt = 0 }
+	end
+	return data.Spin
+end
+
+local function addSpinTokens(data: any, amount: number): (boolean, string?)
+	local spin = getSpinState(data)
+	local tokens = math.floor(spin.Tokens or 0)
+	if tokens + amount > SpinConfig.MaxTokens then
+		return false, "MaxTokens"
+	end
+	spin.Tokens = tokens + amount
+	return true
+end
+
+-- Cộng lượt quay (trúng ô +1 Spin).
+function DataActions.TryAddSpinTokens(player: Player, amount: number): (boolean, string?)
+	if not isValidCount(amount, 1, SpinConfig.MaxTokens) then
+		return false, "InvalidAmount"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	local ok, reason = addSpinTokens(data, amount)
+	if ok then
+		notifyChanged(player)
+	end
+	return ok, reason
+end
+
+-- Cộng lượt quay cho giao dịch Robux, ghi PurchaseId để không cộng trùng.
+function DataActions.TryGrantSpinTokens(player: Player, amount: number, purchaseId: string): (boolean, string?)
+	if not isValidCount(amount, 1, SpinConfig.MaxTokens) or not isValidString(purchaseId) then
+		return false, "InvalidRequest"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	if table.find(data.ProcessedPurchases, purchaseId) then
+		return true
+	end
+	local ok, reason = addSpinTokens(data, amount)
+	if not ok then
+		return false, reason
+	end
+	recordPurchase(data, purchaseId)
+	notifyChanged(player)
+	return true
+end
+
+-- Thời điểm (epoch) có lượt quay free kế tiếp.
+function DataActions.GetNextFreeSpinAt(player: Player): number?
+	local data = DataService.GetData(player)
+	if data == nil then
+		return nil
+	end
+	return (getSpinState(data).LastFreeAt or 0) + SpinConfig.FreeSpinCooldown
+end
+
+-- Dùng 1 lượt quay: ưu tiên lượt free mỗi ngày, sau đó tới lượt đã có. Trả về (ok, reason, isFree).
+function DataActions.TryConsumeSpin(player: Player, now: number): (boolean, string?, boolean)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded", false
+	end
+	local spin = getSpinState(data)
+	if now >= (spin.LastFreeAt or 0) + SpinConfig.FreeSpinCooldown then
+		spin.LastFreeAt = math.floor(now)
+		notifyChanged(player)
+		return true, nil, true
+	end
+	if (spin.Tokens or 0) < 1 then
+		return false, "NoSpins", false
+	end
+	spin.Tokens = math.floor(spin.Tokens - 1)
+	notifyChanged(player)
+	return true, nil, false
 end
 
 -- Cộng Robux đã chi cho bảng xếp hạng Donated. Gọi sau khi giao dịch đã được cấp quà.
@@ -672,6 +1152,59 @@ function DataActions.TryUseBuffItem(player: Player, itemId: string): (boolean, s
 	return true
 end
 
+local function reviveWeapon(weapon: any)
+	weapon.State = DataTemplate.WeaponStates.Blank
+	weapon.Level = 0
+	weapon.ForgePoints = 0
+	weapon.Value = weapon.BaseValue
+	weapon.ValueHistory = {}
+	weapon.ShapeStage = nil
+	weapon.ShapeStrikes = nil
+	weapon.FrenzyStrikes = nil
+	weapon.Mutation = nil
+end
+
+local function eraseMutation(weapon: any)
+	weapon.Mutation = nil
+end
+
+local WEAPON_ITEM_EFFECTS: { [string]: (weapon: any) -> () } = {
+	[WeaponItemConfig.Targets.Broken] = reviveWeapon,
+	[WeaponItemConfig.Targets.Mutated] = eraseMutation,
+}
+
+function DataActions.TryUseWeaponItem(
+	player: Player,
+	itemId: string,
+	weaponId: string
+): (boolean, string?)
+	local definition = WeaponItemConfig.ById[itemId]
+	if definition == nil then
+		return false, "InvalidItem"
+	end
+	local data = DataService.GetData(player)
+	if data == nil then
+		return false, "NotLoaded"
+	end
+	local weapon = if isValidString(weaponId) then data.Weapons[weaponId] else nil
+	if weapon == nil then
+		return false, "WeaponNotFound"
+	end
+	local current = data.Items[itemId] or 0
+	if current < 1 then
+		return false, "NotEnoughItems"
+	end
+	local isTarget, reason = WeaponItemTarget.Check(itemId, weapon, isWeaponEquipped(data, weaponId))
+	if not isTarget then
+		return false, reason
+	end
+	data.Items[itemId] = if current > 1 then current - 1 else nil
+	WEAPON_ITEM_EFFECTS[definition.Target](weapon)
+	recordIndex(data, weapon)
+	notifyChanged(player)
+	return true
+end
+
 function DataActions.PauseTimedBuffs(player: Player)
 	local data = DataService.GetData(player)
 	if data == nil then
@@ -699,6 +1232,69 @@ function DataActions.ResumeTimedBuffs(player: Player)
 	end
 	table.clear(data.PausedBuffs)
 	notifyChanged(player)
+end
+
+local function isTutorialStepId(stepId: any): boolean
+	if not isValidString(stepId) then
+		return false
+	end
+	for _, step in TutorialConfig.Steps do
+		if step.Id == stepId then
+			return true
+		end
+	end
+	return false
+end
+
+local function getOpenTutorial(player: Player): (any?, string?)
+	local data = DataService.GetData(player)
+	if data == nil then
+		return nil, "NotLoaded"
+	end
+	local tutorial = data.Tutorial
+	if type(tutorial) ~= "table" then
+		return nil, "InvalidData"
+	end
+	if tutorial.IsComplete == true then
+		return nil, "TutorialComplete"
+	end
+	return tutorial, nil
+end
+
+function DataActions.TrySetTutorialStep(player: Player, stepId: string): (boolean, string?)
+	if not isTutorialStepId(stepId) then
+		return false, "InvalidStep"
+	end
+	local tutorial, reason = getOpenTutorial(player)
+	if tutorial == nil then
+		return false, reason
+	end
+	tutorial.StepId = stepId
+	tutorial.DigCount = 0
+	notifyChanged(player)
+	return true
+end
+
+function DataActions.TryAddTutorialDig(player: Player): (boolean, string?)
+	local tutorial, reason = getOpenTutorial(player)
+	if tutorial == nil then
+		return false, reason
+	end
+	local current = if type(tutorial.DigCount) == "number" then tutorial.DigCount else 0
+	tutorial.DigCount = math.clamp(math.floor(current) + 1, 0, TutorialConfig.DigTarget)
+	notifyChanged(player)
+	return true
+end
+
+function DataActions.TryCompleteTutorial(player: Player): (boolean, string?)
+	local tutorial, reason = getOpenTutorial(player)
+	if tutorial == nil then
+		return false, reason
+	end
+	tutorial.IsComplete = true
+	tutorial.DigCount = 0
+	notifyChanged(player)
+	return true
 end
 
 function DataActions.OnDataChanged(callback: (Player) -> ())

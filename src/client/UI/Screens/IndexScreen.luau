@@ -40,6 +40,8 @@ export type IndexEntry = {
 	Rarity: string,
 	IsUnlocked: boolean,
 	Image: string?,
+	ImageRectOffset: Vector2?,
+	ImageRectSize: Vector2?,
 }
 
 export type RewardInfo = {
@@ -54,6 +56,8 @@ export type IndexCollection = {
 	Rarity: string,
 	ChancePercent: string,
 	Image: string?,
+	ImageRectOffset: Vector2?,
+	ImageRectSize: Vector2?,
 	Entries: { IndexEntry },
 	Reward: RewardInfo?,
 }
@@ -74,6 +78,7 @@ local collectionTemplate: Frame? = nil
 local tabTemplate: TextButton? = nil
 local collectionData: { [Frame]: IndexCollection } = {}
 local focusedFrame: Frame? = nil
+local claimHandler: ((rarity: string) -> ())? = nil
 
 local function findChild(parent: Instance, path: { string }): Instance?
 	local current: Instance? = parent
@@ -93,13 +98,22 @@ local function setText(parent: Instance, path: { string }, text: string)
 	end
 end
 
-local function setImage(parent: Instance, path: { string }, image: string?, color: Color3?)
+local function setImage(
+	parent: Instance,
+	path: { string },
+	image: string?,
+	color: Color3?,
+	rectOffset: Vector2?,
+	rectSize: Vector2?
+)
 	local imageLabel = findChild(parent, path)
 	if not imageLabel or not imageLabel:IsA("ImageLabel") then
 		return
 	end
 	imageLabel.Image = image or ""
 	imageLabel.ImageColor3 = color or UNLOCKED_IMAGE_COLOR
+	imageLabel.ImageRectOffset = rectOffset or Vector2.zero
+	imageLabel.ImageRectSize = rectSize or Vector2.zero
 end
 
 local function setFill(bar: Instance?, current: number, total: number)
@@ -141,7 +155,8 @@ local function showPreview(entry: IndexEntry)
 	end
 	setText(preview, { "NameLabel" }, getEntryName(entry))
 	setText(preview, { "RarityLabel" }, string.upper(entry.Rarity))
-	setImage(preview, { "Slot", "WeaponImage" }, entry.Image, getEntryColor(entry))
+	local color = getEntryColor(entry)
+	setImage(preview, { "Slot", "WeaponImage" }, entry.Image, color, entry.ImageRectOffset, entry.ImageRectSize)
 	local slot = preview:FindFirstChild("Slot")
 	if slot and slot:IsA("GuiObject") then
 		RarityGradient.Apply(slot, entry.Rarity)
@@ -156,7 +171,8 @@ local function createCell(template: GuiButton, entry: IndexEntry, order: number)
 	RarityGradient.Apply(cell, entry.Rarity)
 	setText(cell, { "NameLabel" }, getEntryName(entry))
 	setText(cell, { "RarityLabel" }, string.upper(entry.Rarity))
-	setImage(cell, { "WeaponImage" }, entry.Image, getEntryColor(entry))
+	local color = getEntryColor(entry)
+	setImage(cell, { "WeaponImage" }, entry.Image, color, entry.ImageRectOffset, entry.ImageRectSize)
 	cell.Activated:Connect(function()
 		showPreview(entry)
 	end)
@@ -180,8 +196,10 @@ local function fillShowcase(frame: Instance, data: IndexCollection)
 	end
 	RarityGradient.Apply(showcase, data.Rarity)
 	setText(showcase, { "RarityLabel" }, string.upper(data.Rarity))
-	setText(showcase, { "ChanceLabel" }, string.format(IndexMessages.ChanceFormat, data.ChancePercent))
-	setImage(showcase, { "WeaponImage" }, data.Image)
+	local chance = data.ChancePercent
+	local chanceText = if chance == "" then "" else string.format(IndexMessages.ChanceFormat, chance)
+	setText(showcase, { "ChanceLabel" }, chanceText)
+	setImage(showcase, { "WeaponImage" }, data.Image, nil, data.ImageRectOffset, data.ImageRectSize)
 end
 
 local function fillProgress(frame: Instance, entries: { IndexEntry })
@@ -459,6 +477,25 @@ local function bindCloseButton(mainFrame: Instance)
 	end
 end
 
+local function onClaimActivated()
+	local frame = focusedFrame
+	local data = frame and collectionData[frame]
+	local reward = data and data.Reward
+	local handler = claimHandler
+	if data and reward and reward.IsClaimable and handler then
+		handler(data.Rarity)
+	end
+end
+
+local function bindClaimButton(mainFrame: Instance)
+	local claimButton = mainFrame:FindFirstChild("ClaimButton", true)
+	if claimButton and claimButton:IsA("GuiButton") then
+		claimButton.Activated:Connect(onClaimActivated)
+	else
+		warn("[IndexScreen] Reward ClaimButton missing")
+	end
+end
+
 local function enableHoverEffects(mainFrame: Instance, collection: Instance, tab: Instance)
 	local targets = {
 		tab,
@@ -514,6 +551,29 @@ function IndexScreen.RenderTabs(tabs: { IndexTab }, selectedId: string?, onSelec
 	end
 end
 
+function IndexScreen.RefreshRewards(collections: { IndexCollection })
+	local byId: { [string]: IndexCollection } = {}
+	for _, data in collections do
+		byId[data.Id] = data
+	end
+	for frame, data in collectionData do
+		local updated = byId[data.Id]
+		if updated then
+			collectionData[frame] = updated
+			setImage(frame, { REWARD_ICON_NAME }, updated.Reward and updated.Reward.Image)
+		end
+	end
+	local frame = focusedFrame
+	local focused = frame and collectionData[frame]
+	if focused then
+		applyReward(focused.Reward)
+	end
+end
+
+function IndexScreen.SetClaimHandler(handler: (rarity: string) -> ())
+	claimHandler = handler
+end
+
 function IndexScreen.SetTotalProgress(unlocked: number, total: number)
 	local bar = main and main:FindFirstChild("UnlockedBar")
 	if not bar then
@@ -558,6 +618,7 @@ function IndexScreen.Init()
 	bindCanvasToLayout(collections)
 	collections:GetPropertyChangedSignal("CanvasPosition"):Connect(refreshFocus)
 	bindCloseButton(mainFrame)
+	bindClaimButton(mainFrame)
 	HudButton.Bind(INDEX_BUTTON_NAME, function()
 		setIndexVisible(not root.Visible)
 	end)

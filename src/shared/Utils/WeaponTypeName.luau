@@ -12,7 +12,8 @@ function WeaponTypeName.Get(rarity: string, weaponTypeId: string): string
 			return weaponType.DisplayName
 		end
 	end
-	return weaponTypeId
+	local resolved = WeaponCatalog.Resolve(weaponTypeId)
+	return if resolved then resolved.DisplayName else weaponTypeId
 end
 
 return WeaponTypeName

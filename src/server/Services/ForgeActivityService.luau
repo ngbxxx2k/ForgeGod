@@ -7,12 +7,14 @@ local shared = ReplicatedStorage:WaitForChild("Shared")
 local PlayerAttributes = require(shared:WaitForChild("Constants"):WaitForChild("PlayerAttributes"))
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
 local StationConfig = require(shared:WaitForChild("Config"):WaitForChild("StationConfig"))
+local TutorialConfig = require(shared:WaitForChild("Config"):WaitForChild("TutorialConfig"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local DataTemplate = require(script.Parent.Parent.Data.DataTemplate)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
 local StationRange = require(script.Parent.Parent.Security.StationRange)
+local TutorialService = require(script.Parent.TutorialService)
 
 local REMOTES_FOLDER_NAME = "Remotes"
 local RATE_LIMIT_KEY = "ForgeStance"
@@ -60,6 +62,7 @@ local function setStance(player: Player, weaponId: string)
 	player:SetAttribute(PlayerAttributes.ForgeWeaponType, weapon.WeaponType)
 	player:SetAttribute(PlayerAttributes.ForgeShapeStage, getShapeStage(weapon))
 	player:SetAttribute(PlayerAttributes.ForgeStanceId, nextStanceId(player))
+	TutorialService.Report(player, TutorialConfig.Events.ForgeEntered)
 end
 
 local function onRequestStance(player: Player, weaponId: any)
@@ -68,6 +71,7 @@ local function onRequestStance(player: Player, weaponId: any)
 	end
 	if weaponId == nil then
 		clearStance(player)
+		TutorialService.Report(player, TutorialConfig.Events.ForgeLeft)
 		return
 	end
 	if type(weaponId) ~= "string" or #weaponId > MAX_WEAPON_ID_LENGTH then

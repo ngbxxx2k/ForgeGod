@@ -1,0 +1,161 @@
+{
+  "className": "ScreenGui",
+  "properties": {
+    "ResetOnSpawn": false,
+    "IgnoreGuiInset": false,
+    "ZIndexBehavior": "Sibling",
+    "DisplayOrder": 20
+  },
+  "children": [
+    {
+      "name": "Panel",
+      "className": "Frame",
+      "properties": {
+        "Visible": false,
+        "AnchorPoint": [1, 0],
+        "Position": { "UDim2": [[0.99, 0], [0.115, 0]] },
+        "Size": { "UDim2": [[0.3, 0], [0.3, 0]] },
+        "BackgroundColor3": [0.114, 0.129, 0.2],
+        "BorderSizePixel": 0
+      },
+      "children": [
+        { "name": "UIAspectRatioConstraint", "className": "UIAspectRatioConstraint", "properties": { "AspectRatio": 5.2 } },
+        { "name": "UISizeConstraint", "className": "UISizeConstraint", "properties": { "MinSize": [300, 58], "MaxSize": [560, 108] } },
+        { "name": "UICorner", "className": "UICorner", "properties": { "CornerRadius": { "UDim": [0.2, 0] } } },
+        { "name": "UIStroke", "className": "UIStroke", "properties": { "Color": [0.043, 0.051, 0.086], "Thickness": 3 } },
+        {
+          "name": "IconFrame",
+          "className": "Frame",
+          "properties": {
+            "AnchorPoint": [0, 0.5],
+            "Position": { "UDim2": [[0.018, 0], [0.5, 0]] },
+            "Size": { "UDim2": [[0.82, 0], [0.82, 0]] },
+            "SizeConstraint": "RelativeYY",
+            "BackgroundColor3": [0.204, 0.518, 1],
+            "BorderSizePixel": 0
+          },
+          "children": [
+            { "name": "UICorner", "className": "UICorner", "properties": { "CornerRadius": { "UDim": [0.2, 0] } } },
+            { "name": "UIStroke", "className": "UIStroke", "properties": { "Color": [0.043, 0.051, 0.086], "Thickness": 2.5 } },
+            {
+              "name": "Icon",
+              "className": "ImageLabel",
+              "properties": {
+                "AnchorPoint": [0.5, 0.5],
+                "Position": { "UDim2": [[0.5, 0], [0.5, 0]] },
+                "Size": { "UDim2": [[0.82, 0], [0.82, 0]] },
+                "BackgroundTransparency": 1,
+                "ScaleType": "Fit"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Badge",
+          "className": "Frame",
+          "properties": {
+            "AnchorPoint": [0, 0.5],
+            "Position": { "UDim2": [[0.02, 0], [0, 0]] },
+            "Size": { "UDim2": [[0.27, 0], [0.34, 0]] },
+            "BackgroundColor3": [0.204, 0.518, 1],
+            "BorderSizePixel": 0,
+            "ZIndex": 3
+          },
+          "children": [
+            { "name": "UICorner", "className": "UICorner", "properties": { "CornerRadius": { "UDim": [0.35, 0] } } },
+            { "name": "UIStroke", "className": "UIStroke", "properties": { "Color": [0.043, 0.051, 0.086], "Thickness": 2.5 } },
+            {
+              "name": "Label",
+              "className": "TextLabel",
+              "properties": {
+                "AnchorPoint": [0.5, 0.5],
+                "Position": { "UDim2": [[0.5, 0], [0.5, 0]] },
+                "Size": { "UDim2": [[0.88, 0], [0.78, 0]] },
+                "BackgroundTransparency": 1,
+                "RichText": true,
+                "TextScaled": true,
+                "Text": "TUTORIAL 1/12",
+                "TextColor3": [1, 1, 1],
+                "FontFace": { "Font": { "family": "rbxasset://fonts/families/FredokaOne.json", "weight": "Bold", "style": "Normal" } },
+                "ZIndex": 4
+              },
+              "children": [
+                { "name": "UIStroke", "className": "UIStroke", "properties": { "Color": [0.043, 0.051, 0.086], "Thickness": 1.5 } }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Title",
+          "className": "TextLabel",
+          "properties": {
+            "Position": { "UDim2": [[0.205, 0], [0.12, 0]] },
+            "Size": { "UDim2": [[0.775, 0], [0.36, 0]] },
+            "BackgroundTransparency": 1,
+            "TextScaled": true,
+            "Text": "STEP TITLE",
+            "TextColor3": [1, 1, 1],
+            "FontFace": { "Font": { "family": "rbxasset://fonts/families/FredokaOne.json", "weight": "Bold", "style": "Normal" } }
+          },
+          "children": [
+            { "name": "UIStroke", "className": "UIStroke", "properties": { "Color": [0.043, 0.051, 0.086], "Thickness": 2.5 } }
+          ]
+        },
+        {
+          "name": "Description",
+          "className": "TextLabel",
+          "properties": {
+            "Position": { "UDim2": [[0.205, 0], [0.5, 0]] },
+            "Size": { "UDim2": [[0.775, 0], [0.22, 0]] },
+            "BackgroundTransparency": 1,
+            "TextScaled": true,
+            "Text": "Step description",
+            "TextColor3": [1, 0.886, 0.478],
+            "FontFace": { "Font": { "family": "rbxasset://fonts/families/FredokaOne.json", "weight": "Bold", "style": "Normal" } }
+          },
+          "children": [
+            { "name": "UIStroke", "className": "UIStroke", "properties": { "Color": [0.043, 0.051, 0.086], "Thickness": 1.5 } }
+          ]
+        },
+        {
+          "name": "ProgressTrack",
+          "className": "Frame",
+          "properties": {
+            "Position": { "UDim2": [[0.205, 0], [0.78, 0]] },
+            "Size": { "UDim2": [[0.765, 0], [0.11, 0]] },
+            "BackgroundColor3": [0.055, 0.067, 0.11],
+            "BorderSizePixel": 0
+          },
+          "children": [
+            { "name": "UICorner", "className": "UICorner", "properties": { "CornerRadius": { "UDim": [1, 0] } } },
+            { "name": "UIStroke", "className": "UIStroke", "properties": { "Color": [0.02, 0.024, 0.04], "Thickness": 1.5 } },
+            {
+              "name": "Fill",
+              "className": "Frame",
+              "properties": {
+                "Size": { "UDim2": [[0, 0], [1, 0]] },
+                "BackgroundColor3": [0.373, 0.82, 0.239],
+                "BorderSizePixel": 0
+              },
+              "children": [
+                { "name": "UICorner", "className": "UICorner", "properties": { "CornerRadius": { "UDim": [1, 0] } } }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pointer",
+      "className": "ImageLabel",
+      "properties": {
+        "Visible": false,
+        "AnchorPoint": [0.46, 0.04],
+        "Size": { "UDim2": [[0, 72], [0, 72]] },
+        "BackgroundTransparency": 1,
+        "ScaleType": "Fit",
+        "ZIndex": 10
+      }
+    }
+  ]
+}

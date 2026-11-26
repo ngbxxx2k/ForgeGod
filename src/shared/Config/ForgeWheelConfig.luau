@@ -9,7 +9,7 @@ ForgeWheelConfig.TargetEdgeMargin = 0.2
 
 -- PLACEHOLDER: số vòng/nhịp lúc kim quay tự do trong khi chờ server trả kết quả
 ForgeWheelConfig.FreeSpinTurnsPerBeat = 3
-ForgeWheelConfig.MinLandingTime = 0.25
+ForgeWheelConfig.MinLandingTime = 0.08
 ForgeWheelConfig.HaltTime = 0.3
 ForgeWheelConfig.ResultTimeout = 3
 ForgeWheelConfig.NextChancesDelay = 0.35

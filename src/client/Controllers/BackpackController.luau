@@ -16,11 +16,13 @@ local SellPrice = require(ReplicatedStorage.Shared.Utils.SellPrice)
 local ConfirmScreen = require(script.Parent.Parent.UI.Screens.ConfirmScreen)
 local PlayerStateTypes = require(ReplicatedStorage.Shared.Types.PlayerStateTypes)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
+local StorageConfig = require(ReplicatedStorage.Shared.Config.StorageConfig)
 local BackpackScreen = require(script.Parent.Parent.UI.Screens.BackpackScreen)
 local Toast = require(script.Parent.Parent.UI.Components.Toast)
 local UiSound = require(script.Parent.Parent.Effects.UiSound)
 local InventoryItems = require(script.Parent.InventoryItems)
 local PlayerStateController = require(script.Parent.PlayerStateController)
+local WeaponItemController = require(script.Parent.WeaponItemController)
 
 type BackpackItem = BackpackScreen.BackpackItem
 type BackpackTab = BackpackScreen.BackpackTab
@@ -55,6 +57,7 @@ local isInitialized = false
 local currentTabId = WEAPON_TAB_ID
 local requestHold: RemoteEvent? = nil
 local requestSell: RemoteEvent? = nil
+local requestBuyStorage: RemoteEvent? = nil
 local requestSellItem: RemoteEvent? = nil
 local requestSellAllWeapons: RemoteEvent? = nil
 local requestSetLock: RemoteEvent? = nil
@@ -66,7 +69,7 @@ local function getItems(state: PlayerState, tabId: string): { BackpackItem }
 	elseif tabId == BUFF_TAB_ID then
 		return InventoryItems.GetBuffs(state)
 	end
-	return InventoryItems.GetWeapons(state)
+	return InventoryItems.GetBackpackWeapons(state)
 end
 
 local function render()
@@ -92,7 +95,9 @@ end
 
 local function onItemAction(item: BackpackItem)
 	if item.Category == BUFF_TAB_ID then
-		if requestUseItem then
+		if WeaponItemController.IsWeaponItem(item.Id) then
+			WeaponItemController.Use(item.Id)
+		elseif requestUseItem then
 			requestUseItem:FireServer(item.Id)
 		end
 		return
@@ -158,7 +163,7 @@ local function sellAllWeapons()
 	end
 	local weaponIds, total = getSellableWeapons()
 	if #weaponIds == 0 then
-		Toast.Show(SellMessages.NotificationTitle, SellMessages.NoWeaponsToSell)
+		Toast.Error(SellMessages.NoWeaponsToSell)
 		return
 	end
 	ConfirmScreen.Show({
@@ -202,12 +207,12 @@ end
 local function onSellResult(ok: any, reason: any, coins: any)
 	if ok == true and type(coins) == "number" then
 		local text = string.format(SellMessages.SoldFormat, NumberFormat.Abbreviate(coins))
-		Toast.Show(SellMessages.NotificationTitle, text)
+		Toast.Success(text)
 		UiSound.PlaySell()
 		return
 	end
 	local message = type(reason) == "string" and SellMessages.Reasons[reason]
-	Toast.Show(SellMessages.NotificationTitle, message or SellMessages.UnknownError)
+	Toast.Error(message or SellMessages.UnknownError)
 end
 
 local function onLockItem(item: BackpackItem)
@@ -222,18 +227,18 @@ local function onLockResult(ok: any, reason: any)
 		return
 	end
 	local message = type(reason) == "string" and WeaponLockMessages.Reasons[reason]
-	Toast.Show(WeaponLockMessages.NotificationTitle, message or WeaponLockMessages.UnknownError)
+	Toast.Error(message or WeaponLockMessages.UnknownError)
 end
 
 local function onUseItemResult(ok: any, reason: any, itemId: any)
 	if ok == true and type(itemId) == "string" then
 		local itemName = BackpackMessages.ItemNames[itemId] or itemId
 		local text = string.format(BuffMessages.ActivatedFormat, itemName)
-		Toast.Show(BuffMessages.NotificationTitle, text)
+		Toast.Success(text)
 		return
 	end
 	local message = type(reason) == "string" and BuffMessages.Reasons[reason]
-	Toast.Show(BuffMessages.NotificationTitle, message or BuffMessages.UnknownError)
+	Toast.Error(message or BuffMessages.UnknownError)
 end
 
 local function onHoldResult(ok: any, reason: any)
@@ -241,7 +246,23 @@ local function onHoldResult(ok: any, reason: any)
 		return
 	end
 	local message = type(reason) == "string" and EquipMessages.Reasons[reason]
-	Toast.Show(EquipMessages.HoldTitle, message or EquipMessages.UnknownError)
+	Toast.Error(message or EquipMessages.UnknownError)
+end
+
+local function onStorageAdd()
+	local remote = requestBuyStorage
+	if remote then
+		remote:FireServer()
+	end
+end
+
+local function onBuyStorageResult(ok: any, reason: any)
+	if ok == true then
+		Toast.Success(string.format(BackpackMessages.StorageExpandedFormat, StorageConfig.ExpandedSlots))
+		return
+	end
+	local message = type(reason) == "string" and BackpackMessages.StorageReasons[reason]
+	Toast.Error(message or BackpackMessages.StorageUnknownError)
 end
 
 function BackpackController.Init()
@@ -265,6 +286,10 @@ function BackpackController.Init()
 	requestUseItem = remotes:WaitForChild(RemoteNames.RequestUseItem) :: RemoteEvent
 	local useItemResult = remotes:WaitForChild(RemoteNames.NotifyUseItemResult) :: RemoteEvent
 	useItemResult.OnClientEvent:Connect(onUseItemResult)
+	requestBuyStorage = remotes:WaitForChild(RemoteNames.RequestBuyStorage) :: RemoteEvent
+	local storageResult = remotes:WaitForChild(RemoteNames.NotifyBuyStorageResult) :: RemoteEvent
+	storageResult.OnClientEvent:Connect(onBuyStorageResult)
+	BackpackScreen.SetStorageAddHandler(onStorageAdd)
 
 	BackpackScreen.SetActionHandler(onItemAction)
 	BackpackScreen.SetSellHandler(onSellItem)

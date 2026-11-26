@@ -38,6 +38,14 @@ function GuiPath.SetImage(parent: Instance, path: { string }, image: string?)
 	end
 end
 
+function GuiPath.SetImageRect(parent: Instance, path: { string }, offset: Vector2?, size: Vector2?)
+	local imageLabel = GuiPath.Find(parent, path)
+	if imageLabel and imageLabel:IsA("ImageLabel") then
+		imageLabel.ImageRectOffset = offset or Vector2.zero
+		imageLabel.ImageRectSize = size or Vector2.zero
+	end
+end
+
 function GuiPath.SetImageColor(parent: Instance, path: { string }, color: Color3?)
 	local imageLabel = GuiPath.Find(parent, path)
 	if not imageLabel or not imageLabel:IsA("ImageLabel") then

@@ -7,7 +7,9 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local ForgeAnimationConfig = require(ReplicatedStorage.Shared.Config.ForgeAnimationConfig)
+local HoldConfig = require(ReplicatedStorage.Shared.Config.HoldConfig)
 local ForgeRevealTypes = require(ReplicatedStorage.Shared.Types.ForgeRevealTypes)
+local WeaponModelFinder = require(ReplicatedStorage.Shared.Utils.WeaponModelFinder)
 local RevealCleanup = require(script.Parent.RevealCleanup)
 
 type WeaponVisual = ForgeRevealTypes.WeaponVisual
@@ -105,8 +107,19 @@ local function scaleToLength(clone: Model, length: number)
 	end
 end
 
+local function getSpinCenter(model: Model): CFrame
+	local boxCFrame = model:GetBoundingBox()
+	local gripPoint = model:FindFirstChild(HoldConfig.WeaponGripPointName, true)
+	if not gripPoint or not gripPoint:IsA("Attachment") then
+		return boxCFrame
+	end
+	local shaft = boxCFrame:PointToObjectSpace(gripPoint.WorldPosition)
+	return boxCFrame * CFrame.new(shaft.X, 0, shaft.Z)
+end
+
 local function buildModel(visual: WeaponVisual, length: number): BuiltModel?
-	local source = findSourceModel(visual.ModelName)
+	local fromLibrary = if visual.WeaponTypeId then WeaponModelFinder.Find(visual.WeaponTypeId, 1) else nil
+	local source = fromLibrary or findSourceModel(visual.ModelName)
 	if source == nil then
 		warn("[RevealWeapon] Missing weapon model:", visual.ModelName)
 		return nil
@@ -115,10 +128,9 @@ local function buildModel(visual: WeaponVisual, length: number): BuiltModel?
 	clone.Name = ForgeAnimationConfig.WeaponInstanceName
 	local stripped = prepareClone(clone)
 	scaleToLength(clone, length)
-	local boxCFrame = clone:GetBoundingBox()
 	return {
 		Model = clone,
-		CenterToPivot = boxCFrame:ToObjectSpace(clone:GetPivot()),
+		CenterToPivot = getSpinCenter(clone):ToObjectSpace(clone:GetPivot()),
 		StrippedTags = stripped,
 	}
 end
@@ -323,7 +335,7 @@ function RevealWeapon.GetHoverCenter(weapon: Weapon): Vector3
 end
 
 function RevealWeapon.GetCenter(weapon: Weapon): Vector3
-	return weapon.Model:GetBoundingBox().Position
+	return getSpinCenter(weapon.Model).Position
 end
 
 function RevealWeapon.GetTip(weapon: Weapon): Vector3

@@ -14,6 +14,17 @@ export type WeaponSummary = {
 	IsLocked: boolean?,
 }
 
+export type SpinState = {
+	Tokens: number,
+	NextFreeAt: number,
+}
+
+export type TutorialState = {
+	StepId: string,
+	DigCount: number,
+	IsComplete: boolean,
+}
+
 export type PlayerState = {
 	Coins: number,
 	Items: { [string]: number },
@@ -23,6 +34,14 @@ export type PlayerState = {
 	LoadoutCapacity: number?,
 	ActiveBuffs: { [string]: number }?,
 	ArmedBuffs: { [string]: number }?,
+	DigTools: { [string]: number }?,
+	OwnedDigTiers: { [string]: { number } }?,
+	OwnedForgeTiers: { [string]: { number } }?,
+	ForgeSkins: { [string]: number }?,
+	Index: { [string]: boolean }?,
+	IndexRewards: { [string]: boolean }?,
+	Spin: SpinState?,
+	Tutorial: TutorialState?,
 }
 
 return {}

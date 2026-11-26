@@ -16,7 +16,7 @@ local StatusEffectConfig = {
 	CountLabelScale = 0.5,
 	CountStrokeThickness = 1.5,
 	CountTextColor = Color3.fromRGB(255, 255, 255),
-	CountFont = Enum.Font.GothamBold,
+	CountFont = Enum.Font.FredokaOne,
 	TooltipWidth = 220,
 	TooltipPadding = 8,
 	TooltipGap = 6,
@@ -31,8 +31,8 @@ local StatusEffectConfig = {
 	TooltipStrokeTransparency = 0.7,
 	TooltipTitleColor = Color3.fromRGB(255, 220, 120),
 	TooltipTextColor = Color3.fromRGB(235, 235, 235),
-	TooltipTitleFont = Enum.Font.GothamBold,
-	TooltipTextFont = Enum.Font.Gotham,
+	TooltipTitleFont = Enum.Font.FredokaOne,
+	TooltipTextFont = Enum.Font.FredokaOne,
 }
 
 StatusEffectConfig.KindPriority = {

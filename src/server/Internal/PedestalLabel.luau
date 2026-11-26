@@ -7,7 +7,7 @@ local NumberFormat = require(ReplicatedStorage.Shared.Utils.NumberFormat)
 local PlotConfig = require(ReplicatedStorage.Shared.Config.PlotConfig)
 local RarityColors = require(ReplicatedStorage.Shared.Constants.RarityColors)
 local WeaponIncome = require(ReplicatedStorage.Shared.Utils.WeaponIncome)
-local WeaponTypeName = require(ReplicatedStorage.Shared.Utils.WeaponTypeName)
+local WeaponDisplayName = require(ReplicatedStorage.Shared.Utils.WeaponDisplayName)
 
 local BROKEN_STATE = "Broken"
 
@@ -56,7 +56,7 @@ function PedestalLabel.Build(weapon: any, anchor: Attachment, weaponHeight: numb
 	local rarityRow = createRow("RarityLabel", weapon.Rarity, 0, heights.Rarity, PlotConfig.LabelTextColor)
 	addRarityGradient(rarityRow, weapon.Rarity)
 	rarityRow.Parent = gui
-	local nameText = WeaponTypeName.Get(weapon.Rarity, weapon.WeaponType)
+	local nameText = WeaponDisplayName.Get(weapon.Rarity, weapon.WeaponType, weapon.ShapeStage)
 	createRow("NameLabel", nameText, heights.Rarity, heights.Name, PlotConfig.LabelTextColor).Parent = gui
 	local incomeTop = heights.Rarity + heights.Name
 	createRow("IncomeLabel", getIncomeText(weapon), incomeTop, heights.Income, PlotConfig.LabelIncomeColor).Parent =

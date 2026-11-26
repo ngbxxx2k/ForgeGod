@@ -10,13 +10,19 @@ local BuffEffects = require(shared:WaitForChild("Utils"):WaitForChild("BuffEffec
 local ForgeConfig = require(shared:WaitForChild("Config"):WaitForChild("ForgeConfig"))
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
 local StationConfig = require(shared:WaitForChild("Config"):WaitForChild("StationConfig"))
+local TutorialConfig = require(shared:WaitForChild("Config"):WaitForChild("TutorialConfig"))
+local WeaponCatalog = require(shared:WaitForChild("Constants"):WaitForChild("WeaponCatalog"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
 local DataTemplate = require(script.Parent.Parent.Data.DataTemplate)
 local ForgeActivityService = require(script.Parent.ForgeActivityService)
 local FriendBoostService = require(script.Parent.FriendBoostService)
+local ForgeUpgradeService = require(script.Parent.ForgeUpgradeService)
+local GamePassService = require(script.Parent.GamePassService)
+local TutorialService = require(script.Parent.TutorialService)
 local ForgeEventRoller = require(script.Parent.Parent.Internal.ForgeEventRoller)
+local ForgeDifficulty = require(script.Parent.Parent.Internal.ForgeDifficulty)
 local MutationRoller = require(script.Parent.Parent.Internal.MutationRoller)
 local WeatherSchedule = require(script.Parent.Parent.Internal.WeatherSchedule)
 local RateLimiter = require(script.Parent.Parent.Security.RateLimiter)
@@ -31,6 +37,7 @@ local PREVIEW_RATE_LIMIT_KEY = "ForgePreview"
 local PROTECTED_OUTCOME_ID = "Keep"
 local PERCENT_SCALE = 100
 local MAX_WEAPON_ID_LENGTH = 64
+local MIN_STRIKE_INTERVAL = ForgeConfig.StrikeDuration - ForgeConfig.StrikeServerTolerance
 
 local EffectIds = BuffConfig.EffectIds
 
@@ -38,8 +45,15 @@ type Outcome = {
 	Id: string,
 	Weight: number,
 	PointDelta: number,
-	Multipliers: { { Value: number, Weight: number } },
+	Multiplier: number,
 }
+
+type DowngradeRule = {
+	ExtraWeight: number,
+	Scale: number,
+}
+
+local FRENZY_DOWNGRADE_RULE: DowngradeRule = { ExtraWeight = 0, Scale = 1 }
 
 type ForgeModifiers = {
 	Luck: number,
@@ -98,13 +112,10 @@ local function getModifiers(player: Player): ForgeModifiers
 	local holder = getBuffHolder(player)
 	local now = os.time()
 	return {
-		Luck = FriendBoostService.GetLuck(player),
+		Luck = FriendBoostService.GetLuck(player) + ForgeUpgradeService.GetLuck(player),
 		BreakMultiplier = BuffEffects.GetMultiplier(holder, EffectIds.BreakChanceMultiplier, now),
-		SuccessMultiplier = BuffEffects.GetMultiplier(
-			holder,
-			EffectIds.SuccessChanceMultiplier,
-			now
-		),
+		SuccessMultiplier = BuffEffects.GetMultiplier(holder, EffectIds.SuccessChanceMultiplier, now)
+			* GamePassService.GetLuckMultiplier(player),
 	}
 end
 
@@ -126,39 +137,50 @@ local function applySuccessModifiers(outcome: Outcome, modifiers: ForgeModifiers
 	return boosted
 end
 
+local function buildDowngrade(outcome: Outcome, rule: DowngradeRule): Outcome
+	local candidate = table.clone(outcome)
+	candidate.Weight = (outcome.Weight + rule.ExtraWeight) * rule.Scale
+	return candidate
+end
+
 local function appendOutcomes(
 	candidates: { Outcome },
-	canDowngrade: boolean,
+	downgradeRule: DowngradeRule?,
 	modifiers: ForgeModifiers
 )
 	for _, outcome in ForgeOutcomeTable.Outcomes do
-		local isBlockedDowngrade = outcome.PointDelta < 0 and not canDowngrade
-		if not isBlockedDowngrade then
+		if outcome.PointDelta >= 0 then
 			table.insert(candidates, applySuccessModifiers(outcome, modifiers))
+		elseif downgradeRule ~= nil then
+			table.insert(candidates, buildDowngrade(outcome, downgradeRule))
 		end
 	end
 end
 
 local function buildCandidates(weapon: any, modifiers: ForgeModifiers): { Outcome }
-	local forgePoints = weapon.ForgePoints
 	local candidates: { Outcome } = {}
-	if weapon.Level >= ForgeOutcomeTable.MinBreakLevel then
-		local breakWeight = ForgeOutcomeTable.BreakBaseWeight
-			+ ForgeOutcomeTable.BreakWeightPerPoint * forgePoints
-		table.insert(candidates, {
-			Id = ForgeOutcomeTable.BreakOutcomeId,
-			Weight = breakWeight * modifiers.BreakMultiplier,
-			PointDelta = 0,
-			Multipliers = {},
-		})
+	local forgePoints = weapon.ForgePoints
+	if forgePoints <= 0 then
+		appendOutcomes(candidates, nil, modifiers)
+		return candidates
 	end
-	appendOutcomes(candidates, forgePoints > 0, modifiers)
+	local difficulty = ForgeDifficulty.GetMultiplier(weapon.Level)
+	local riskWeight = ForgeOutcomeTable.RiskWeightPerPoint * forgePoints
+	local breakWeight = ForgeOutcomeTable.BreakBaseWeight + riskWeight
+	table.insert(candidates, {
+		Id = ForgeOutcomeTable.BreakOutcomeId,
+		Weight = breakWeight * difficulty * modifiers.BreakMultiplier,
+		PointDelta = 0,
+		Multiplier = 1,
+	})
+	appendOutcomes(candidates, { ExtraWeight = riskWeight, Scale = difficulty }, modifiers)
 	return candidates
 end
 
 local function buildFrenzyCandidates(session: ForgeSession, modifiers: ForgeModifiers): { Outcome }
 	local candidates: { Outcome } = {}
-	appendOutcomes(candidates, #session.ValueHistory > 0, modifiers)
+	local downgradeRule = if #session.ValueHistory > 0 then FRENZY_DOWNGRADE_RULE else nil
+	appendOutcomes(candidates, downgradeRule, modifiers)
 	return candidates
 end
 
@@ -212,26 +234,6 @@ local function rollOutcome(candidates: { Outcome }): Outcome
 	return candidates[#candidates]
 end
 
-local function pickMultiplier(outcome: Outcome): number
-	local multipliers = outcome.Multipliers
-	if #multipliers == 0 then
-		return 1
-	end
-	local totalWeight = 0
-	for _, entry in multipliers do
-		totalWeight += entry.Weight
-	end
-	local roll = rng:NextNumber(0, totalWeight)
-	local cumulative = 0
-	for _, entry in multipliers do
-		cumulative += entry.Weight
-		if roll < cumulative then
-			return entry.Value
-		end
-	end
-	return multipliers[#multipliers].Value
-end
-
 local function cloneWeapon(weapon: any): any
 	local copy = table.clone(weapon)
 	copy.Recipe = table.clone(weapon.Recipe)
@@ -275,9 +277,15 @@ local function getShapeStage(weapon: any): number
 	return weapon.ShapeStage or DataTemplate.Limits.MinShapeStage
 end
 
+local function getMaxShapeStage(weapon: any): number
+	local weaponType = WeaponCatalog.Resolve(weapon.WeaponType)
+	local limit = DataTemplate.Limits.MaxShapeStage
+	return if weaponType then math.min(weaponType.MaxShapeStage, limit) else limit
+end
+
 local function rollShapeChange(weapon: any): boolean
 	local stage = getShapeStage(weapon)
-	if stage >= DataTemplate.Limits.MaxShapeStage then
+	if stage >= getMaxShapeStage(weapon) then
 		return false
 	end
 	local strikes = (weapon.ShapeStrikes or 0) + 1
@@ -368,7 +376,7 @@ local function applyOutcome(weapon: any, outcome: Outcome): number
 		return 1
 	end
 	if outcome.PointDelta > 0 then
-		local multiplier = pickMultiplier(outcome)
+		local multiplier = outcome.Multiplier
 		applyUpgrade(weapon, multiplier)
 		return multiplier
 	end
@@ -442,7 +450,7 @@ local function applyFrenzyOutcome(weapon: any, outcome: Outcome, history: { numb
 		return 1
 	end
 	if outcome.PointDelta > 0 then
-		local multiplier = pickMultiplier(outcome)
+		local multiplier = outcome.Multiplier
 		table.insert(history, weapon.Value)
 		weapon.Value = math.floor(weapon.Value * multiplier)
 		return multiplier
@@ -565,8 +573,16 @@ local function onRequestForge(player: Player, weaponId: any)
 		sendResult(player, false, "RateLimited", nil)
 		return
 	end
+	if not RateLimiter.CheckInterval(player, RATE_LIMIT_KEY, MIN_STRIKE_INTERVAL) then
+		sendResult(player, false, "RateLimited", nil)
+		return
+	end
 	if not StationRange.IsNear(player, StationConfig.ForgeModelName) then
 		sendResult(player, false, "TooFar", nil)
+		return
+	end
+	if TutorialService.IsStrikeBlocked(player) then
+		sendResult(player, false, "TutorialLocked", nil)
 		return
 	end
 	local ok, reason, result = ForgeService.Forge(player, weaponId)
@@ -578,6 +594,7 @@ local function onRequestForge(player: Player, weaponId: any)
 	sendResult(player, ok, reason, result)
 	if ok and result then
 		ForgeActivityService.BroadcastStrike(player, result)
+		TutorialService.Report(player, TutorialConfig.Events.Forged)
 	end
 end
 

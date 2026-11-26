@@ -8,6 +8,8 @@ local HoldConfig = require(shared:WaitForChild("Config"):WaitForChild("HoldConfi
 local PlayerAttributes = require(shared:WaitForChild("Constants"):WaitForChild("PlayerAttributes"))
 local RemoteNames = require(shared:WaitForChild("Network"):WaitForChild("RemoteNames"))
 local WeaponModelFinder = require(shared:WaitForChild("Utils"):WaitForChild("WeaponModelFinder"))
+local WeaponSize = require(shared:WaitForChild("Utils"):WaitForChild("WeaponSize"))
+local DigZone = require(shared:WaitForChild("Utils"):WaitForChild("DigZone"))
 
 local DataActions = require(script.Parent.Parent.Data.DataActions)
 local DataService = require(script.Parent.Parent.Data.DataService)
@@ -79,11 +81,18 @@ local function getGripCFrame(hand: BasePart): CFrame
 	return base * HoldConfig.GripRotation
 end
 
-local function weldToHand(model: Model, hand: BasePart)
+local function getModelGripCFrame(model: Model): CFrame
+	local gripPoint = model:FindFirstChild(HoldConfig.WeaponGripPointName, true)
+	if gripPoint and gripPoint:IsA("Attachment") then
+		return gripPoint.WorldCFrame
+	end
 	local boxCFrame, size = model:GetBoundingBox()
-	local gripOffset = Vector3.yAxis * (size.Y * (0.5 - HoldConfig.GripFraction))
-	local target = getGripCFrame(hand) * CFrame.new(gripOffset)
-	model:PivotTo(target * boxCFrame:ToObjectSpace(model:GetPivot()))
+	return boxCFrame * CFrame.new(Vector3.yAxis * (size.Y * (HoldConfig.GripFraction - 0.5)))
+end
+
+local function weldToHand(model: Model, hand: BasePart)
+	local modelGrip = getModelGripCFrame(model)
+	model:PivotTo(getGripCFrame(hand) * modelGrip:ToObjectSpace(model:GetPivot()))
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			local weld = Instance.new("WeldConstraint")
@@ -112,7 +121,8 @@ local function attach(player: Player, weapon: any): (boolean, string?)
 		return false, "NoModel"
 	end
 	release(player)
-	local model = WeaponModelPrep.Prepare(source, HoldConfig.ModelName, HoldConfig.WeaponLength)
+	local length = WeaponSize.GetLength(weapon.WeaponType, weapon.Scale)
+	local model = WeaponModelPrep.Prepare(source, HoldConfig.ModelName, length)
 	weldToHand(model, hand)
 	model.Parent = hand.Parent
 	local track = playHoldAnimation(hand.Parent :: Instance)
@@ -126,11 +136,20 @@ local function attach(player: Player, weapon: any): (boolean, string?)
 	return true, nil
 end
 
+local function isInDigZone(player: Player): boolean
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	return root ~= nil and root:IsA("BasePart") and DigZone.IsInside(root.Position)
+end
+
 local function toggleHold(player: Player, weaponId: string): (boolean, string?)
 	local held = heldByPlayer[player]
 	if held and held.WeaponId == weaponId then
 		release(player)
 		return true, nil
+	end
+	if isInDigZone(player) then
+		return false, "InDigZone"
 	end
 	local weapon, reason = DataActions.GetWeapon(player, weaponId)
 	if weapon == nil then
@@ -196,6 +215,12 @@ local function createRemote(name: string, parent: Instance): RemoteEvent
 	remote.Name = name
 	remote.Parent = parent
 	return remote
+end
+
+function HoldService.Release(player: Player)
+	if heldByPlayer[player] then
+		release(player)
+	end
 end
 
 function HoldService.Init()

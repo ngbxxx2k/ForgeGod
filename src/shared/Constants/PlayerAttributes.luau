@@ -5,6 +5,8 @@ local PlayerAttributes = {
 	ForgeWeaponType = "ForgeWeaponType",
 	ForgeShapeStage = "ForgeShapeStage",
 	ForgeStanceId = "ForgeStanceId",
+	HammerSkinTier = "HammerSkinTier",
+	OwnedPassPrefix = "OwnsPass_",
 }
 
 return PlayerAttributes
